@@ -658,7 +658,7 @@
 <div class="toolbar">
     <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="search" id="device-search" placeholder="Search name, IP, location…" autocomplete="off">
+        <input type="search" id="device-search" placeholder="Search name, IP, location, port, department…" autocomplete="off">
     </div>
     <div class="filter-group" role="group" aria-label="Status filter">
         <button type="button" class="filter-btn active" data-filter="all">All</button>
@@ -693,6 +693,8 @@
          data-name="{{ device.name|lower }}"
          data-ip="{{ device.ip_address }}"
          data-location="{{ device.location|lower }}"
+         data-port="{{ device.port|lower }}"
+         data-department="{% if device.department %}{{ device.department.name|lower }}{% endif %}"
          data-status="{% if device.is_up %}up{% else %}down{% endif %}">
         <button type="button"
                 class="mini-card {% if device.is_up %}up{% else %}down{% endif %}"
@@ -762,6 +764,14 @@
             <div class="detail-row">
                 <div class="lbl">MAC address</div>
                 <div class="val mono" id="drawer-mac">—</div>
+            </div>
+            <div class="detail-row">
+                <div class="lbl">Port</div>
+                <div class="val mono" id="drawer-port">—</div>
+            </div>
+            <div class="detail-row">
+                <div class="lbl">Department</div>
+                <div class="val" id="drawer-department">—</div>
             </div>
         </div>
 
@@ -875,7 +885,7 @@
         let visible = 0;
         cols.forEach(col => {
             const statusOk = activeFilter === 'all' || col.dataset.status === activeFilter;
-            const hay = `${col.dataset.name} ${col.dataset.ip} ${col.dataset.location}`;
+            const hay = `${col.dataset.name} ${col.dataset.ip} ${col.dataset.location} ${col.dataset.port || ''} ${col.dataset.department || ''}`;
             const show = statusOk && (!q || hay.includes(q));
             col.classList.toggle('hidden-by-filter', !show);
             if (show) visible++;
@@ -913,6 +923,8 @@
         document.getElementById('drawer-ping').textContent = d.response_ms != null ? `${d.response_ms} ms` : '—';
         document.getElementById('drawer-checked').textContent = d.last_checked || 'never';
         document.getElementById('drawer-mac').textContent = d.mac || 'Not detected yet';
+        document.getElementById('drawer-port').textContent = d.port || '—';
+        document.getElementById('drawer-department').textContent = d.department || '—';
         const bar = document.getElementById('drawer-latency');
         const ms = d.is_up ? d.response_ms : null;
         bar.className = `latency-fill ${latencyClass(ms)}`;

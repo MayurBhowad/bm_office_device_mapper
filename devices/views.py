@@ -16,7 +16,7 @@ def dashboard(request):
     """Main dashboard: shows every device as a card. Cards are pre-rendered
     with whatever status is stored in the DB; the page then calls
     /api/check-all/ via JS to refresh statuses live without a full reload."""
-    devices = list(Device.objects.all())
+    devices = list(Device.objects.select_related("department").all())
     up_count = sum(1 for d in devices if d.is_up)
     total_count = len(devices)
     devices_json = [
@@ -26,6 +26,8 @@ def dashboard(request):
             "ip": d.ip_address,
             "mac": d.mac_address or "",
             "location": d.location or "",
+            "port": d.port or "",
+            "department": d.department.name if d.department else "",
             "notes": d.notes or "",
             "is_up": d.is_up,
             "response_ms": d.last_response_ms,

@@ -2,6 +2,18 @@ from django.db import models
 from django.utils import timezone
 
 
+class Department(models.Model):
+    """Organizational department that devices can belong to."""
+
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Device(models.Model):
     """A network device (PC, server, printer, etc.) tracked on the LAN."""
 
@@ -13,6 +25,14 @@ class Device(models.Model):
         help_text="e.g. AA:BB:CC:DD:EE:FF (optional, auto-detected via ARP when possible)",
     )
     location = models.CharField(max_length=100, blank=True, help_text="e.g. 'Office - Floor 2'")
+    port = models.CharField(max_length=50, blank=True, help_text="e.g. switch port 'Gi0/12' or '24'")
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="devices",
+    )
     notes = models.CharField(max_length=255, blank=True)
 
     is_up = models.BooleanField(default=False)
