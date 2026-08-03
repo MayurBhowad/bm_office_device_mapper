@@ -242,9 +242,9 @@
 
         /* —— Page —— */
         .page-wrap {
-            max-width: 1200px;
+            width: 100%;
             margin: 0 auto;
-            padding: 1.75rem 1.25rem 3.5rem;
+            padding: 1.75rem 1.5rem 3.5rem;
         }
 
         .mono { font-family: var(--font-mono); font-size: 0.85em; letter-spacing: -0.02em; }
@@ -334,7 +334,7 @@
 <div class="app-shell">
     {% if user.is_authenticated %}
     <header class="topbar">
-        <div class="container-fluid page-wrap" style="padding-top:0;padding-bottom:0;max-width:1200px;">
+        <div class="container-fluid page-wrap" style="padding-top:0;padding-bottom:0;">
             <div class="topbar-inner">
                 <a class="brand" href="{% url 'dashboard' %}">
                     <span class="brand-mark"><i class="bi bi-broadcast-pin"></i></span>
@@ -358,7 +358,7 @@
     </header>
     {% endif %}
 
-    <main class="page-wrap">
+    <main class="container-fluid page-wrap">
         {% if messages %}
             {% for message in messages %}
                 <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
