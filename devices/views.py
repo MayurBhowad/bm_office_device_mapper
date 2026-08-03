@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from .forms import DeviceForm
-from .models import Device
+from .models import Department, Device
 from .utils import check_device
 
 
@@ -19,6 +19,8 @@ def dashboard(request):
     devices = list(Device.objects.select_related("department").all())
     up_count = sum(1 for d in devices if d.is_up)
     total_count = len(devices)
+    departments = list(Department.objects.order_by("name"))
+    has_unassigned = any(d.department_id is None for d in devices)
     devices_json = [
         {
             "id": d.id,
@@ -42,6 +44,8 @@ def dashboard(request):
         "down_count": total_count - up_count,
         "total_count": total_count,
         "devices_json": devices_json,
+        "departments": departments,
+        "has_unassigned": has_unassigned,
     })
 
 

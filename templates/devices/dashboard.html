@@ -170,6 +170,46 @@
     .filter-btn:hover { color: var(--ink); }
     .filter-btn.active { background: var(--slate-soft); color: var(--ink); }
 
+    .dept-filter {
+        position: relative;
+        flex: 0 1 180px;
+        min-width: 140px;
+    }
+
+    .dept-filter i {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        pointer-events: none;
+        font-size: 0.85rem;
+    }
+
+    .dept-filter select {
+        width: 100%;
+        padding: 0.55rem 2rem 0.55rem 2.1rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-solid);
+        color: var(--ink);
+        font-family: var(--font-body);
+        font-size: 0.825rem;
+        font-weight: 550;
+        outline: none;
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.7rem center;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .dept-filter select:focus {
+        border-color: var(--teal);
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+    }
+
     /* Compact grid — scales to ~100 devices */
     #device-grid {
         display: grid;
@@ -619,6 +659,7 @@
     @media (max-width: 640px) {
         .stat-row { grid-template-columns: 1fr; }
         .dash-header .btn-app { width: 100%; }
+        .dept-filter { flex: 1 1 100%; }
         #device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     }
 </style>
@@ -658,7 +699,19 @@
 <div class="toolbar">
     <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="search" id="device-search" placeholder="Search employee, IP, MAC, host, port, department…" autocomplete="off">
+        <input type="search" id="device-search" placeholder="Search employee, IP, MAC, host, port…" autocomplete="off">
+    </div>
+    <div class="dept-filter">
+        <i class="bi bi-building"></i>
+        <select id="dept-filter" aria-label="Department filter">
+            <option value="">All departments</option>
+            {% for dept in departments %}
+            <option value="{{ dept.name|lower }}">{{ dept.name }}</option>
+            {% endfor %}
+            {% if has_unassigned %}
+            <option value="__none__">Unassigned</option>
+            {% endif %}
+        </select>
     </div>
     <div class="filter-group" role="group" aria-label="Status filter">
         <button type="button" class="filter-btn active" data-filter="all">All</button>
@@ -681,7 +734,7 @@
 <div class="empty-state hidden-by-filter" id="empty-filter">
     <div class="icon-wrap"><i class="bi bi-funnel"></i></div>
     <h2>No matches</h2>
-    <p>Try another search or clear the status filter.</p>
+    <p>Try another search or clear the filters.</p>
     <button type="button" class="btn-app btn-app-ghost" id="clear-filters">Clear filters</button>
 </div>
 {% endif %}
@@ -802,6 +855,7 @@
     let activeFilter = 'all';
     let selectedId = null;
     const searchInput = document.getElementById('device-search');
+    const deptFilter = document.getElementById('dept-filter');
     const emptyFilter = document.getElementById('empty-filter');
     const toast = document.getElementById('toast-copy');
     const drawer = document.getElementById('device-drawer');
@@ -888,12 +942,16 @@
 
     function filterDevices() {
         const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
+        const dept = deptFilter ? deptFilter.value : '';
         const cols = document.querySelectorAll('.device-col');
         let visible = 0;
         cols.forEach(col => {
             const statusOk = activeFilter === 'all' || col.dataset.status === activeFilter;
-            const hay = `${col.dataset.employee} ${col.dataset.ip} ${col.dataset.mac || ''} ${col.dataset.host || ''} ${col.dataset.port || ''} ${col.dataset.department || ''}`;
-            const show = statusOk && (!q || hay.includes(q));
+            const colDept = col.dataset.department || '';
+            const deptOk = !dept
+                || (dept === '__none__' ? !colDept : colDept === dept);
+            const hay = `${col.dataset.employee} ${col.dataset.ip} ${col.dataset.mac || ''} ${col.dataset.host || ''} ${col.dataset.port || ''} ${colDept}`;
+            const show = statusOk && deptOk && (!q || hay.includes(q));
             col.classList.toggle('hidden-by-filter', !show);
             if (show) visible++;
         });
@@ -1034,8 +1092,10 @@
         el.addEventListener('click', () => setFilter(el.dataset.filter));
     });
     searchInput?.addEventListener('input', filterDevices);
+    deptFilter?.addEventListener('change', filterDevices);
     document.getElementById('clear-filters')?.addEventListener('click', () => {
         if (searchInput) searchInput.value = '';
+        if (deptFilter) deptFilter.value = '';
         setFilter('all');
     });
 
