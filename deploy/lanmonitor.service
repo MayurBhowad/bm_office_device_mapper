@@ -1,0 +1,16 @@
+[Unit]
+Description=LAN Monitor Django app
+After=network.target
+
+[Service]
+Type=simple
+User=mayur
+Group=mayur
+WorkingDirectory=/home/mayur/Mayur/Agents/lanmonitor
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash -c 'source ./venv/bin/activate && exec python manage.py runserver 0.0.0.0:8010 --noreload'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
