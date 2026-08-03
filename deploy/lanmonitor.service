@@ -8,6 +8,7 @@ User=mayur
 Group=mayur
 WorkingDirectory=/home/mayur/Mayur/Agents/lanmonitor
 Environment=PYTHONUNBUFFERED=1
+Environment=DJANGO_DB_PATH=/home/mayur/Mayur/Agents/lanmonitor/deploy/db.sqlite3
 ExecStart=/bin/bash -c 'source ./venv/bin/activate && exec python manage.py runserver 0.0.0.0:8010 --noreload'
 Restart=on-failure
 RestartSec=5

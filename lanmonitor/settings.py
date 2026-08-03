@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -76,11 +77,15 @@ WSGI_APPLICATION = 'lanmonitor.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+# Local/dev defaults to BASE_DIR/db.sqlite3.
+# Production service sets DJANGO_DB_PATH to deploy/db.sqlite3.
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': Path(
+            os.environ.get('DJANGO_DB_PATH', str(BASE_DIR / 'db.sqlite3'))
+        ),
     }
 }
 
