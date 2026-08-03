@@ -17,14 +17,18 @@ class Department(models.Model):
 class Device(models.Model):
     """A network device (PC, server, printer, etc.) tracked on the LAN."""
 
-    name = models.CharField(max_length=100, help_text="Friendly name, e.g. 'Reception PC'")
     ip_address = models.GenericIPAddressField(unique=True, help_text="e.g. 192.168.1.25")
     mac_address = models.CharField(
         max_length=17,
         blank=True,
         help_text="e.g. AA:BB:CC:DD:EE:FF (optional, auto-detected via ARP when possible)",
     )
-    location = models.CharField(max_length=100, blank=True, help_text="e.g. 'Office - Floor 2'")
+    host = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Hostname (optional), e.g. 'PC-RECEPTION-01'",
+    )
+    employee = models.CharField(max_length=100, help_text="Employee name (required)")
     port = models.CharField(max_length=50, blank=True, help_text="e.g. switch port 'Gi0/12' or '24'")
     department = models.ForeignKey(
         Department,
@@ -33,7 +37,6 @@ class Device(models.Model):
         blank=True,
         related_name="devices",
     )
-    notes = models.CharField(max_length=255, blank=True)
 
     is_up = models.BooleanField(default=False)
     last_checked = models.DateTimeField(null=True, blank=True)
@@ -43,10 +46,10 @@ class Device(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["employee"]
 
     def __str__(self):
-        return f"{self.name} ({self.ip_address})"
+        return f"{self.employee} ({self.ip_address})"
 
     def mark_status(self, is_up: bool, response_ms=None, mac_address=None):
         self.is_up = is_up

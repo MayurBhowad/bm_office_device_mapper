@@ -6,7 +6,7 @@
         <div class="form-panel">
             <p class="text-muted small mb-1" style="font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">Device</p>
             <h1 class="form-title">{{ title }}</h1>
-            <p class="text-muted mb-4" style="font-size:0.9rem;">Fill in the details below. IP must be unique on this monitor.</p>
+            <p class="text-muted mb-4" style="font-size:0.9rem;">IP must be unique. Employee is required; Host and MAC can be left empty.</p>
             <form method="post" novalidate>
                 {% csrf_token %}
                 {% for field in form %}

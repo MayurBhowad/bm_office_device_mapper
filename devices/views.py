@@ -22,13 +22,12 @@ def dashboard(request):
     devices_json = [
         {
             "id": d.id,
-            "name": d.name,
             "ip": d.ip_address,
             "mac": d.mac_address or "",
-            "location": d.location or "",
+            "host": d.host or "",
+            "employee": d.employee,
             "port": d.port or "",
             "department": d.department.name if d.department else "",
-            "notes": d.notes or "",
             "is_up": d.is_up,
             "response_ms": d.last_response_ms,
             "last_checked": d.last_checked.strftime("%H:%M:%S") if d.last_checked else "",
@@ -52,7 +51,7 @@ def device_add(request):
         form = DeviceForm(request.POST)
         if form.is_valid():
             device = form.save()
-            messages.success(request, f"Added {device.name}.")
+            messages.success(request, f"Added {device.employee}.")
             return redirect("dashboard")
     else:
         form = DeviceForm()
@@ -66,20 +65,20 @@ def device_edit(request, pk):
         form = DeviceForm(request.POST, instance=device)
         if form.is_valid():
             form.save()
-            messages.success(request, f"Updated {device.name}.")
+            messages.success(request, f"Updated {device.employee}.")
             return redirect("dashboard")
     else:
         form = DeviceForm(instance=device)
-    return render(request, "devices/device_form.html", {"form": form, "title": f"Edit {device.name}"})
+    return render(request, "devices/device_form.html", {"form": form, "title": f"Edit {device.employee}"})
 
 
 @login_required
 def device_delete(request, pk):
     device = get_object_or_404(Device, pk=pk)
     if request.method == "POST":
-        name = device.name
+        employee = device.employee
         device.delete()
-        messages.success(request, f"Removed {name}.")
+        messages.success(request, f"Removed {employee}.")
         return redirect("dashboard")
     return render(request, "devices/device_confirm_delete.html", {"device": device})
 

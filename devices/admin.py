@@ -10,7 +10,7 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(Device)
 class DeviceAdmin(admin.ModelAdmin):
-    list_display = ("name", "ip_address", "mac_address", "location", "port", "department", "is_up", "last_checked")
-    list_filter = ("is_up", "location", "department")
-    search_fields = ("name", "ip_address", "mac_address", "port", "department__name")
+    list_display = ("ip_address", "mac_address", "host", "employee", "port", "department", "is_up", "last_checked")
+    list_filter = ("is_up", "department")
+    search_fields = ("ip_address", "mac_address", "host", "employee", "port", "department__name")
     autocomplete_fields = ("department",)
