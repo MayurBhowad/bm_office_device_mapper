@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - LAN Monitor{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0">Devices</h3>
+        <small class="text-muted">Auto-refreshing every 15 seconds</small>
+    </div>
+    <div class="d-flex gap-2">
+        <span class="badge bg-secondary fs-6">Total: <span id="total-count">{{ total_count }}</span></span>
+        <span class="badge bg-success fs-6">Up: <span id="up-count">{{ up_count }}</span></span>
+        <span class="badge bg-danger fs-6">Down: <span id="down-count">{{ down_count }}</span></span>
+        <button id="refresh-btn" class="btn btn-primary btn-sm">
+            <i class="bi bi-arrow-clockwise"></i> Check now
+        </button>
+    </div>
+</div>
+
+{% if not devices %}
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-hdd-network" style="font-size: 3rem;"></i>
+        <p class="mt-3">No devices yet. <a href="{% url 'device_add' %}">Add your first one</a>.</p>
+    </div>
+{% endif %}
+
+<div class="row g-3" id="device-grid">
+    {% for device in devices %}
+    <div class="col-sm-6 col-lg-4 col-xl-3" id="device-col-{{ device.id }}">
+        <div class="card device-card {% if device.is_up %}up{% else %}down{% endif %} shadow-sm h-100"
+             id="device-card-{{ device.id }}" data-id="{{ device.id }}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <h5 class="card-title mb-1">{{ device.name }}</h5>
+                    <span class="status-dot {% if device.is_up %}up{% else %}down{% endif %}"
+                          id="dot-{{ device.id }}" title="{% if device.is_up %}Up{% else %}Down{% endif %}"></span>
+                </div>
+                {% if device.location %}
+                    <div class="text-muted small mb-2"><i class="bi bi-geo-alt"></i> {{ device.location }}</div>
+                {% endif %}
+                <table class="table table-sm table-borderless mb-2">
+                    <tr>
+                        <td class="text-muted">IP</td>
+                        <td class="mono">{{ device.ip_address }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">MAC</td>
+                        <td class="mono" id="mac-{{ device.id }}">{{ device.mac_address|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Ping</td>
+                        <td id="ping-{{ device.id }}">
+                            {% if device.last_response_ms %}{{ device.last_response_ms }} ms{% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Checked</td>
+                        <td id="checked-{{ device.id }}">
+                            {% if device.last_checked %}{{ device.last_checked|time:"H:i:s" }}{% else %}never{% endif %}
+                        </td>
+                    </tr>
+                </table>
+                {% if device.notes %}<p class="small text-muted mb-2">{{ device.notes }}</p>{% endif %}
+            </div>
+            <div class="card-footer bg-transparent border-top-0 d-flex justify-content-between">
+                <span class="badge {% if device.is_up %}bg-success{% else %}bg-danger{% endif %}" id="badge-{{ device.id }}">
+                    {% if device.is_up %}ONLINE{% else %}OFFLINE{% endif %}
+                </span>
+                <div>
+                    <a href="{% url 'device_edit' device.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+                    <a href="{% url 'device_delete' device.id %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function applyStatus(d) {
+    const card = document.getElementById(`device-card-${d.id}`);
+    const dot = document.getElementById(`dot-${d.id}`);
+    const badge = document.getElementById(`badge-${d.id}`);
+    const ping = document.getElementById(`ping-${d.id}`);
+    const checked = document.getElementById(`checked-${d.id}`);
+    const mac = document.getElementById(`mac-${d.id}`);
+    if (!card) return;
+
+    card.classList.toggle('up', d.is_up);
+    card.classList.toggle('down', !d.is_up);
+    dot.classList.toggle('up', d.is_up);
+    dot.classList.toggle('down', !d.is_up);
+    badge.textContent = d.is_up ? 'ONLINE' : 'OFFLINE';
+    badge.className = `badge ${d.is_up ? 'bg-success' : 'bg-danger'}`;
+    ping.textContent = d.response_ms ? `${d.response_ms} ms` : '—';
+    checked.textContent = d.last_checked || 'never';
+    if (d.mac_address) mac.textContent = d.mac_address;
+}
+
+function updateCounters(devices) {
+    const up = devices.filter(d => d.is_up).length;
+    document.getElementById('up-count').textContent = up;
+    document.getElementById('down-count').textContent = devices.length - up;
+    document.getElementById('total-count').textContent = devices.length;
+}
+
+async function checkAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
+    try {
+        const res = await fetch("{% url 'check_all' %}");
+        const data = await res.json();
+        data.devices.forEach(applyStatus);
+        updateCounters(data.devices);
+    } catch (e) {
+        console.error('Status check failed', e);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Check now';
+    }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', checkAll);
+
+// Auto refresh on load and every 15s
+checkAll();
+setInterval(checkAll, 15000);
+</script>
+{% endblock %}
