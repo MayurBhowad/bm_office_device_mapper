@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from .forms import DeviceForm
 from .models import Device
@@ -15,14 +16,31 @@ def dashboard(request):
     """Main dashboard: shows every device as a card. Cards are pre-rendered
     with whatever status is stored in the DB; the page then calls
     /api/check-all/ via JS to refresh statuses live without a full reload."""
-    devices = Device.objects.all()
-    up_count = devices.filter(is_up=True).count()
-    total_count = devices.count()
+    devices = list(Device.objects.all())
+    up_count = sum(1 for d in devices if d.is_up)
+    total_count = len(devices)
+    devices_json = [
+        {
+            "id": d.id,
+            "name": d.name,
+            "ip": d.ip_address,
+            "mac": d.mac_address or "",
+            "location": d.location or "",
+            "notes": d.notes or "",
+            "is_up": d.is_up,
+            "response_ms": d.last_response_ms,
+            "last_checked": d.last_checked.strftime("%H:%M:%S") if d.last_checked else "",
+            "edit_url": reverse("device_edit", args=[d.id]),
+            "delete_url": reverse("device_delete", args=[d.id]),
+        }
+        for d in devices
+    ]
     return render(request, "devices/dashboard.html", {
         "devices": devices,
         "up_count": up_count,
         "down_count": total_count - up_count,
         "total_count": total_count,
+        "devices_json": devices_json,
     })
 
 

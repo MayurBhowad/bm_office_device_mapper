@@ -1,132 +1,1057 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - LAN Monitor{% endblock %}
 
+{% block extra_css %}
+<style>
+    .dash-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.15rem;
+        animation: fadeUp 0.4s ease-out;
+    }
+
+    .dash-header h1 {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: clamp(1.45rem, 2.5vw, 1.75rem);
+        letter-spacing: -0.03em;
+        margin: 0 0 0.2rem;
+    }
+
+    .dash-sub {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+    }
+
+    .live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.5rem;
+        background: var(--teal-soft);
+        color: var(--teal-deep);
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+
+    .live-pill .blink {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--teal);
+        animation: pulse-dot 1.6s ease-in-out infinite;
+    }
+
+    .stat-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.65rem;
+        margin-bottom: 1rem;
+        animation: fadeUp 0.45s ease-out 0.05s both;
+    }
+
+    .stat-card {
+        background: var(--surface);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0.7rem 0.9rem;
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+        text-align: left;
+        font-family: inherit;
+        width: 100%;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .stat-card:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    .stat-card.active {
+        border-color: var(--teal);
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+    }
+
+    .stat-card .label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+    }
+
+    .stat-card .value {
+        font-family: var(--font-display);
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1;
+    }
+
+    .stat-card.up .value { color: var(--teal-deep); }
+    .stat-card.down .value { color: var(--coral); }
+    .stat-card.total .value { color: var(--ink); }
+
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: center;
+        margin-bottom: 1rem;
+        animation: fadeUp 0.5s ease-out 0.08s both;
+    }
+
+    .search-box {
+        flex: 1 1 200px;
+        position: relative;
+        min-width: 0;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 0.8rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        pointer-events: none;
+        font-size: 0.9rem;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 0.55rem 0.9rem 0.55rem 2.25rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-solid);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .search-box input:focus {
+        border-color: var(--teal);
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+    }
+
+    .filter-group {
+        display: flex;
+        gap: 0.25rem;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 0.2rem;
+    }
+
+    .filter-btn {
+        border: none;
+        background: transparent;
+        padding: 0.35rem 0.7rem;
+        border-radius: 7px;
+        font-family: var(--font-body);
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--ink-soft);
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+
+    .filter-btn:hover { color: var(--ink); }
+    .filter-btn.active { background: var(--slate-soft); color: var(--ink); }
+
+    /* Compact grid — scales to ~100 devices */
+    #device-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 0.65rem;
+    }
+
+    .device-col { animation: fadeUp 0.3s ease-out both; }
+
+    .mini-card {
+        width: 100%;
+        text-align: left;
+        font-family: inherit;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0.7rem 0.75rem;
+        cursor: pointer;
+        box-shadow: 0 1px 2px rgba(26, 35, 50, 0.04);
+        transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background 0.15s;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        min-height: 88px;
+    }
+
+    .mini-card::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--coral);
+        transition: background 0.25s;
+    }
+
+    .mini-card.up::before { background: var(--teal); }
+    .mini-card.down::before { background: var(--coral); }
+
+    .mini-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow);
+        border-color: rgba(13, 148, 136, 0.25);
+    }
+
+    .mini-card.selected {
+        border-color: var(--teal);
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+        background: linear-gradient(135deg, #fff 0%, #f0fdfa 100%);
+    }
+
+    .mini-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+    }
+
+    .mini-name {
+        font-family: var(--font-display);
+        font-weight: 650;
+        font-size: 0.86rem;
+        letter-spacing: -0.02em;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.25;
+        color: var(--ink);
+    }
+
+    .mini-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .mini-dot.up {
+        background: var(--teal);
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.18);
+        animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .mini-dot.down { background: var(--coral); }
+
+    .mini-ip {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--ink-soft);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mini-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.35rem;
+        margin-top: auto;
+        font-size: 0.66rem;
+        font-weight: 600;
+        color: var(--muted);
+    }
+
+    .mini-status.up { color: var(--teal-deep); }
+    .mini-status.down { color: var(--coral); }
+    .mini-ping { font-family: var(--font-mono); font-weight: 500; }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1.25rem;
+        background: var(--surface);
+        border: 1px dashed rgba(26, 35, 50, 0.15);
+        border-radius: var(--radius);
+        animation: fadeUp 0.4s ease-out;
+    }
+
+    .empty-state .icon-wrap {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1rem;
+        border-radius: 18px;
+        background: var(--teal-soft);
+        color: var(--teal-deep);
+        display: grid;
+        place-items: center;
+        font-size: 1.75rem;
+    }
+
+    .empty-state h2 {
+        font-family: var(--font-display);
+        font-size: 1.15rem;
+        font-weight: 650;
+        margin: 0 0 0.35rem;
+    }
+
+    .empty-state p { color: var(--muted); margin: 0 0 1rem; }
+    .hidden-by-filter { display: none !important; }
+
+    /* Right detail drawer */
+    .drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.35);
+        backdrop-filter: blur(2px);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s ease, visibility 0.25s;
+        z-index: 300;
+    }
+
+    .drawer-backdrop.open {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        height: 100%;
+        width: min(400px, 100vw);
+        background: #fff;
+        box-shadow: -12px 0 40px rgba(15, 23, 42, 0.12);
+        z-index: 310;
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 1.25rem 1.25rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(160deg, #f8fafc 0%, #fff 100%);
+    }
+
+    .drawer-header.up {
+        background: linear-gradient(160deg, rgba(204, 251, 241, 0.55) 0%, #fff 75%);
+    }
+
+    .drawer-header.down {
+        background: linear-gradient(160deg, rgba(255, 228, 230, 0.5) 0%, #fff 75%);
+    }
+
+    .drawer-identity {
+        display: flex;
+        gap: 0.85rem;
+        min-width: 0;
+    }
+
+    .drawer-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+        background: var(--teal-soft);
+        color: var(--teal-deep);
+    }
+
+    .drawer-header.down .drawer-avatar {
+        background: var(--coral-soft);
+        color: var(--coral);
+    }
+
+    .drawer-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.2rem;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.25rem;
+        word-break: break-word;
+    }
+
+    .drawer-loc {
+        font-size: 0.8rem;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .drawer-close {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink-soft);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s, color 0.15s;
+    }
+
+    .drawer-close:hover {
+        background: var(--slate-soft);
+        color: var(--ink);
+    }
+
+    .drawer-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.15rem 1.25rem 1.5rem;
+    }
+
+    .drawer-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 0.4rem 0.7rem;
+        border-radius: 8px;
+        margin-bottom: 1.1rem;
+    }
+
+    .drawer-status.up { background: var(--teal-soft); color: var(--teal-deep); }
+    .drawer-status.down { background: var(--coral-soft); color: var(--coral); }
+
+    .drawer-status .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+    }
+
+    .drawer-status.up .dot { background: var(--teal); animation: pulse-dot 2s ease-in-out infinite; }
+    .drawer-status.down .dot { background: var(--coral); }
+
+    .ip-block {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+        padding: 0.9rem 1rem;
+        border-radius: 14px;
+        background: #0f172a;
+        color: #e2e8f0;
+        border: none;
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+        font-family: inherit;
+        margin-bottom: 1rem;
+        transition: background 0.15s;
+    }
+
+    .ip-block:hover { background: #1e293b; }
+
+    .ip-block-label {
+        display: block;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        margin-bottom: 0.2rem;
+    }
+
+    .ip-block-value {
+        font-family: var(--font-mono);
+        font-size: 1.2rem;
+        font-weight: 500;
+        color: #f8fafc;
+        word-break: break-all;
+    }
+
+    .ip-block-copy {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.08);
+        color: #94a3b8;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+    }
+
+    .ip-block:hover .ip-block-copy { color: #5eead4; background: rgba(13, 148, 136, 0.25); }
+
+    .detail-grid {
+        display: grid;
+        gap: 0.55rem;
+        margin-bottom: 1rem;
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 0.7rem 0.85rem;
+        background: var(--slate-soft);
+        border-radius: 10px;
+    }
+
+    .detail-row .lbl {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+    }
+
+    .detail-row .val {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--ink);
+        text-align: right;
+        word-break: break-all;
+    }
+
+    .detail-row .val.mono {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .latency-track {
+        height: 4px;
+        border-radius: 99px;
+        background: rgba(26, 35, 50, 0.08);
+        overflow: hidden;
+        margin-top: 0.45rem;
+    }
+
+    .latency-fill {
+        height: 100%;
+        width: 0;
+        border-radius: 99px;
+        background: var(--teal);
+        transition: width 0.4s ease, background 0.25s;
+    }
+
+    .latency-fill.good { background: var(--teal); }
+    .latency-fill.ok { background: var(--amber); }
+    .latency-fill.slow { background: var(--coral); }
+    .latency-fill.none { width: 0 !important; }
+
+    .drawer-notes {
+        font-size: 0.875rem;
+        color: var(--ink-soft);
+        line-height: 1.45;
+        padding: 0.75rem 0.9rem;
+        background: rgba(241, 245, 249, 0.8);
+        border-radius: 10px;
+        border-left: 3px solid rgba(13, 148, 136, 0.4);
+        margin-bottom: 0.5rem;
+    }
+
+    .drawer-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding: 1rem 1.25rem 1.25rem;
+        border-top: 1px solid var(--line);
+        background: #fafbfc;
+    }
+
+    .drawer-footer .btn-app { flex: 1 1 auto; }
+    .drawer-footer .btn-icon { width: 40px; height: 40px; }
+
+    .toast-copy {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--ink);
+        color: #fff;
+        padding: 0.55rem 1.1rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.85rem;
+        font-weight: 500;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s, transform 0.25s;
+        z-index: 400;
+    }
+
+    .toast-copy.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    body.drawer-open { overflow: hidden; }
+
+    @media (max-width: 640px) {
+        .stat-row { grid-template-columns: 1fr; }
+        .dash-header .btn-app { width: 100%; }
+        #device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+<div class="dash-header">
     <div>
-        <h3 class="mb-0">Devices</h3>
-        <small class="text-muted">Auto-refreshing every 15 seconds</small>
+        <h1>Devices</h1>
+        <p class="dash-sub">
+            <span class="live-pill"><span class="blink"></span> Live</span>
+            Auto-checks every 15s
+            <span id="last-refresh"></span>
+        </p>
     </div>
-    <div class="d-flex gap-2">
-        <span class="badge bg-secondary fs-6">Total: <span id="total-count">{{ total_count }}</span></span>
-        <span class="badge bg-success fs-6">Up: <span id="up-count">{{ up_count }}</span></span>
-        <span class="badge bg-danger fs-6">Down: <span id="down-count">{{ down_count }}</span></span>
-        <button id="refresh-btn" class="btn btn-primary btn-sm">
-            <i class="bi bi-arrow-clockwise"></i> Check now
-        </button>
-    </div>
+    <button id="refresh-btn" class="btn-app btn-app-primary" type="button">
+        <i class="bi bi-arrow-clockwise"></i> Check now
+    </button>
 </div>
 
-{% if not devices %}
-    <div class="text-center text-muted py-5">
-        <i class="bi bi-hdd-network" style="font-size: 3rem;"></i>
-        <p class="mt-3">No devices yet. <a href="{% url 'device_add' %}">Add your first one</a>.</p>
+{% if devices %}
+<div class="stat-row">
+    <button type="button" class="stat-card total active" data-filter="all" aria-pressed="true">
+        <span class="label">Total</span>
+        <span class="value" id="total-count">{{ total_count }}</span>
+    </button>
+    <button type="button" class="stat-card up" data-filter="up" aria-pressed="false">
+        <span class="label">Online</span>
+        <span class="value" id="up-count">{{ up_count }}</span>
+    </button>
+    <button type="button" class="stat-card down" data-filter="down" aria-pressed="false">
+        <span class="label">Offline</span>
+        <span class="value" id="down-count">{{ down_count }}</span>
+    </button>
+</div>
+
+<div class="toolbar">
+    <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="search" id="device-search" placeholder="Search name, IP, location…" autocomplete="off">
     </div>
+    <div class="filter-group" role="group" aria-label="Status filter">
+        <button type="button" class="filter-btn active" data-filter="all">All</button>
+        <button type="button" class="filter-btn" data-filter="up">Online</button>
+        <button type="button" class="filter-btn" data-filter="down">Offline</button>
+    </div>
+</div>
 {% endif %}
 
-<div class="row g-3" id="device-grid">
+{% if not devices %}
+<div class="empty-state" id="empty-initial">
+    <div class="icon-wrap"><i class="bi bi-hdd-network"></i></div>
+    <h2>No devices yet</h2>
+    <p>Add a PC, server, or printer to start watching your LAN.</p>
+    <a href="{% url 'device_add' %}" class="btn-app btn-app-primary">
+        <i class="bi bi-plus-lg"></i> Add your first device
+    </a>
+</div>
+{% else %}
+<div class="empty-state hidden-by-filter" id="empty-filter">
+    <div class="icon-wrap"><i class="bi bi-funnel"></i></div>
+    <h2>No matches</h2>
+    <p>Try another search or clear the status filter.</p>
+    <button type="button" class="btn-app btn-app-ghost" id="clear-filters">Clear filters</button>
+</div>
+{% endif %}
+
+<div id="device-grid">
     {% for device in devices %}
-    <div class="col-sm-6 col-lg-4 col-xl-3" id="device-col-{{ device.id }}">
-        <div class="card device-card {% if device.is_up %}up{% else %}down{% endif %} shadow-sm h-100"
-             id="device-card-{{ device.id }}" data-id="{{ device.id }}">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <h5 class="card-title mb-1">{{ device.name }}</h5>
-                    <span class="status-dot {% if device.is_up %}up{% else %}down{% endif %}"
-                          id="dot-{{ device.id }}" title="{% if device.is_up %}Up{% else %}Down{% endif %}"></span>
-                </div>
-                {% if device.location %}
-                    <div class="text-muted small mb-2"><i class="bi bi-geo-alt"></i> {{ device.location }}</div>
-                {% endif %}
-                <table class="table table-sm table-borderless mb-2">
-                    <tr>
-                        <td class="text-muted">IP</td>
-                        <td class="mono">{{ device.ip_address }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">MAC</td>
-                        <td class="mono" id="mac-{{ device.id }}">{{ device.mac_address|default:"—" }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Ping</td>
-                        <td id="ping-{{ device.id }}">
-                            {% if device.last_response_ms %}{{ device.last_response_ms }} ms{% else %}—{% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Checked</td>
-                        <td id="checked-{{ device.id }}">
-                            {% if device.last_checked %}{{ device.last_checked|time:"H:i:s" }}{% else %}never{% endif %}
-                        </td>
-                    </tr>
-                </table>
-                {% if device.notes %}<p class="small text-muted mb-2">{{ device.notes }}</p>{% endif %}
+    <div class="device-col"
+         id="device-col-{{ device.id }}"
+         data-name="{{ device.name|lower }}"
+         data-ip="{{ device.ip_address }}"
+         data-location="{{ device.location|lower }}"
+         data-status="{% if device.is_up %}up{% else %}down{% endif %}">
+        <button type="button"
+                class="mini-card {% if device.is_up %}up{% else %}down{% endif %}"
+                id="device-card-{{ device.id }}"
+                data-id="{{ device.id }}"
+                aria-expanded="false">
+            <div class="mini-top">
+                <h2 class="mini-name">{{ device.name }}</h2>
+                <span class="mini-dot {% if device.is_up %}up{% else %}down{% endif %}" id="dot-{{ device.id }}"></span>
             </div>
-            <div class="card-footer bg-transparent border-top-0 d-flex justify-content-between">
-                <span class="badge {% if device.is_up %}bg-success{% else %}bg-danger{% endif %}" id="badge-{{ device.id }}">
-                    {% if device.is_up %}ONLINE{% else %}OFFLINE{% endif %}
+            <div class="mini-ip">{{ device.ip_address }}</div>
+            <div class="mini-meta">
+                <span class="mini-status {% if device.is_up %}up{% else %}down{% endif %}" id="badge-{{ device.id }}">
+                    {% if device.is_up %}Online{% else %}Offline{% endif %}
                 </span>
-                <div>
-                    <a href="{% url 'device_edit' device.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                    <a href="{% url 'device_delete' device.id %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
-                </div>
+                <span class="mini-ping" id="ping-{{ device.id }}">
+                    {% if device.last_response_ms %}{{ device.last_response_ms|floatformat:0 }}ms{% else %}—{% endif %}
+                </span>
             </div>
-        </div>
+        </button>
     </div>
     {% endfor %}
 </div>
+
+{{ devices_json|json_script:"devices-json" }}
+
+<div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+<aside class="drawer" id="device-drawer" aria-hidden="true" role="dialog" aria-labelledby="drawer-name">
+    <div class="drawer-header down" id="drawer-header">
+        <div class="drawer-identity">
+            <div class="drawer-avatar" id="drawer-avatar">?</div>
+            <div>
+                <h2 class="drawer-title" id="drawer-name">Device</h2>
+                <div class="drawer-loc" id="drawer-loc"><i class="bi bi-geo-alt"></i> <span>—</span></div>
+            </div>
+        </div>
+        <button type="button" class="drawer-close" id="drawer-close" aria-label="Close details">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="drawer-body">
+        <div class="drawer-status down" id="drawer-status">
+            <span class="dot"></span>
+            <span id="drawer-status-text">Offline</span>
+        </div>
+
+        <button type="button" class="ip-block" id="drawer-copy-ip" title="Copy IP">
+            <span>
+                <span class="ip-block-label">IP address</span>
+                <span class="ip-block-value" id="drawer-ip">—</span>
+            </span>
+            <span class="ip-block-copy"><i class="bi bi-clipboard"></i></span>
+        </button>
+
+        <div class="detail-grid">
+            <div class="detail-row">
+                <div>
+                    <div class="lbl">Ping</div>
+                    <div class="latency-track"><div class="latency-fill none" id="drawer-latency"></div></div>
+                </div>
+                <div class="val" id="drawer-ping">—</div>
+            </div>
+            <div class="detail-row">
+                <div class="lbl">Last checked</div>
+                <div class="val" id="drawer-checked">never</div>
+            </div>
+            <div class="detail-row">
+                <div class="lbl">MAC address</div>
+                <div class="val mono" id="drawer-mac">—</div>
+            </div>
+        </div>
+
+        <div id="drawer-notes-wrap" class="drawer-notes" hidden></div>
+    </div>
+    <div class="drawer-footer">
+        <button type="button" class="btn-app btn-app-primary" id="drawer-ping-btn">
+            <i class="bi bi-activity"></i> Ping now
+        </button>
+        <a href="#" class="btn-icon" id="drawer-edit" title="Edit"><i class="bi bi-pencil"></i></a>
+        <a href="#" class="btn-icon danger" id="drawer-delete" title="Delete"><i class="bi bi-trash"></i></a>
+    </div>
+</aside>
+
+<div class="toast-copy" id="toast-copy" role="status">IP copied</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function applyStatus(d) {
-    const card = document.getElementById(`device-card-${d.id}`);
-    const dot = document.getElementById(`dot-${d.id}`);
-    const badge = document.getElementById(`badge-${d.id}`);
-    const ping = document.getElementById(`ping-${d.id}`);
-    const checked = document.getElementById(`checked-${d.id}`);
-    const mac = document.getElementById(`mac-${d.id}`);
-    if (!card) return;
+(function () {
+    let activeFilter = 'all';
+    let selectedId = null;
+    const searchInput = document.getElementById('device-search');
+    const emptyFilter = document.getElementById('empty-filter');
+    const toast = document.getElementById('toast-copy');
+    const drawer = document.getElementById('device-drawer');
+    const backdrop = document.getElementById('drawer-backdrop');
+    const checkOneUrl = (id) => `{% url 'check_one' 0 %}`.replace('/0/', `/${id}/`);
 
-    card.classList.toggle('up', d.is_up);
-    card.classList.toggle('down', !d.is_up);
-    dot.classList.toggle('up', d.is_up);
-    dot.classList.toggle('down', !d.is_up);
-    badge.textContent = d.is_up ? 'ONLINE' : 'OFFLINE';
-    badge.className = `badge ${d.is_up ? 'bg-success' : 'bg-danger'}`;
-    ping.textContent = d.response_ms ? `${d.response_ms} ms` : '—';
-    checked.textContent = d.last_checked || 'never';
-    if (d.mac_address) mac.textContent = d.mac_address;
-}
-
-function updateCounters(devices) {
-    const up = devices.filter(d => d.is_up).length;
-    document.getElementById('up-count').textContent = up;
-    document.getElementById('down-count').textContent = devices.length - up;
-    document.getElementById('total-count').textContent = devices.length;
-}
-
-async function checkAll() {
-    const btn = document.getElementById('refresh-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
-    try {
-        const res = await fetch("{% url 'check_all' %}");
-        const data = await res.json();
-        data.devices.forEach(applyStatus);
-        updateCounters(data.devices);
-    } catch (e) {
-        console.error('Status check failed', e);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Check now';
+    const devicesMap = {};
+    const jsonEl = document.getElementById('devices-json');
+    if (jsonEl) {
+        try {
+            JSON.parse(jsonEl.textContent).forEach(d => { devicesMap[d.id] = d; });
+        } catch (e) {
+            console.error('Failed to parse devices JSON', e);
+        }
     }
-}
 
-document.getElementById('refresh-btn').addEventListener('click', checkAll);
+    function latencyClass(ms) {
+        if (ms == null) return 'none';
+        if (ms < 50) return 'good';
+        if (ms < 150) return 'ok';
+        return 'slow';
+    }
 
-// Auto refresh on load and every 15s
-checkAll();
-setInterval(checkAll, 15000);
+    function latencyWidth(ms) {
+        if (ms == null) return 0;
+        return Math.max(12, Math.min(100, 100 - (ms / 3)));
+    }
+
+    function showToast(msg) {
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1400);
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+    }
+
+    function applyStatus(d) {
+        const card = document.getElementById(`device-card-${d.id}`);
+        const col = document.getElementById(`device-col-${d.id}`);
+        const dot = document.getElementById(`dot-${d.id}`);
+        const badge = document.getElementById(`badge-${d.id}`);
+        const ping = document.getElementById(`ping-${d.id}`);
+        if (!card) return;
+
+        card.classList.toggle('up', d.is_up);
+        card.classList.toggle('down', !d.is_up);
+        if (col) col.dataset.status = d.is_up ? 'up' : 'down';
+        if (dot) {
+            dot.classList.toggle('up', d.is_up);
+            dot.classList.toggle('down', !d.is_up);
+        }
+        if (badge) {
+            badge.textContent = d.is_up ? 'Online' : 'Offline';
+            badge.className = `mini-status ${d.is_up ? 'up' : 'down'}`;
+        }
+        if (ping) {
+            ping.textContent = d.response_ms != null ? `${Math.round(d.response_ms)}ms` : '—';
+        }
+
+        if (devicesMap[d.id]) {
+            devicesMap[d.id].is_up = d.is_up;
+            devicesMap[d.id].response_ms = d.response_ms;
+            devicesMap[d.id].last_checked = d.last_checked || '';
+            if (d.mac_address) devicesMap[d.id].mac = d.mac_address;
+        }
+
+        if (selectedId === d.id) fillDrawer(devicesMap[d.id]);
+    }
+
+    function updateCounters(devices) {
+        const up = devices.filter(d => d.is_up).length;
+        const upEl = document.getElementById('up-count');
+        const downEl = document.getElementById('down-count');
+        const totalEl = document.getElementById('total-count');
+        if (upEl) upEl.textContent = up;
+        if (downEl) downEl.textContent = devices.length - up;
+        if (totalEl) totalEl.textContent = devices.length;
+    }
+
+    function filterDevices() {
+        const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
+        const cols = document.querySelectorAll('.device-col');
+        let visible = 0;
+        cols.forEach(col => {
+            const statusOk = activeFilter === 'all' || col.dataset.status === activeFilter;
+            const hay = `${col.dataset.name} ${col.dataset.ip} ${col.dataset.location}`;
+            const show = statusOk && (!q || hay.includes(q));
+            col.classList.toggle('hidden-by-filter', !show);
+            if (show) visible++;
+        });
+        if (emptyFilter) {
+            emptyFilter.classList.toggle('hidden-by-filter', visible > 0 || cols.length === 0);
+        }
+    }
+
+    function setFilter(filter) {
+        activeFilter = filter;
+        document.querySelectorAll('.stat-card[data-filter], .filter-btn[data-filter]').forEach(el => {
+            const on = el.dataset.filter === filter;
+            el.classList.toggle('active', on);
+            if (el.classList.contains('stat-card')) el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        filterDevices();
+    }
+
+    function fillDrawer(d) {
+        if (!d) return;
+        const header = document.getElementById('drawer-header');
+        const status = document.getElementById('drawer-status');
+        header.className = `drawer-header ${d.is_up ? 'up' : 'down'}`;
+        status.className = `drawer-status ${d.is_up ? 'up' : 'down'}`;
+        document.getElementById('drawer-status-text').textContent = d.is_up ? 'Online' : 'Offline';
+        document.getElementById('drawer-avatar').textContent = (d.name || '?').charAt(0).toUpperCase();
+        document.getElementById('drawer-name').textContent = d.name;
+        const locEl = document.getElementById('drawer-loc');
+        locEl.innerHTML = d.location
+            ? `<i class="bi bi-geo-alt"></i> <span>${escapeHtml(d.location)}</span>`
+            : `<i class="bi bi-hdd-network"></i> <span>Network device</span>`;
+        document.getElementById('drawer-ip').textContent = d.ip;
+        document.getElementById('drawer-copy-ip').dataset.copy = d.ip;
+        document.getElementById('drawer-ping').textContent = d.response_ms != null ? `${d.response_ms} ms` : '—';
+        document.getElementById('drawer-checked').textContent = d.last_checked || 'never';
+        document.getElementById('drawer-mac').textContent = d.mac || 'Not detected yet';
+        const bar = document.getElementById('drawer-latency');
+        const ms = d.is_up ? d.response_ms : null;
+        bar.className = `latency-fill ${latencyClass(ms)}`;
+        bar.style.width = `${latencyWidth(ms)}%`;
+        const notesWrap = document.getElementById('drawer-notes-wrap');
+        if (d.notes) {
+            notesWrap.hidden = false;
+            notesWrap.textContent = d.notes;
+        } else {
+            notesWrap.hidden = true;
+            notesWrap.textContent = '';
+        }
+        document.getElementById('drawer-edit').href = d.edit_url;
+        document.getElementById('drawer-delete').href = d.delete_url;
+        document.getElementById('drawer-ping-btn').dataset.check = d.id;
+    }
+
+    function openDrawer(id) {
+        const d = devicesMap[id];
+        if (!d || !drawer) return;
+        selectedId = id;
+        fillDrawer(d);
+        document.querySelectorAll('.mini-card.selected').forEach(el => {
+            el.classList.remove('selected');
+            el.setAttribute('aria-expanded', 'false');
+        });
+        const card = document.getElementById(`device-card-${id}`);
+        if (card) {
+            card.classList.add('selected');
+            card.setAttribute('aria-expanded', 'true');
+        }
+        backdrop.hidden = false;
+        requestAnimationFrame(() => {
+            backdrop.classList.add('open');
+            drawer.classList.add('open');
+        });
+        drawer.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('drawer-open');
+    }
+
+    function closeDrawer() {
+        selectedId = null;
+        document.querySelectorAll('.mini-card.selected').forEach(el => {
+            el.classList.remove('selected');
+            el.setAttribute('aria-expanded', 'false');
+        });
+        drawer.classList.remove('open');
+        backdrop.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('drawer-open');
+        setTimeout(() => { backdrop.hidden = true; }, 280);
+    }
+
+    async function checkAll() {
+        const btn = document.getElementById('refresh-btn');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.classList.add('spinning');
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Checking…';
+        try {
+            const res = await fetch("{% url 'check_all' %}");
+            const data = await res.json();
+            data.devices.forEach(applyStatus);
+            updateCounters(data.devices);
+            filterDevices();
+            const lr = document.getElementById('last-refresh');
+            if (lr) lr.textContent = `· Updated ${new Date().toLocaleTimeString()}`;
+        } catch (e) {
+            console.error('Status check failed', e);
+        } finally {
+            btn.disabled = false;
+            btn.classList.remove('spinning');
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Check now';
+        }
+    }
+
+    async function checkOne(id) {
+        const btn = document.getElementById('drawer-ping-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Pinging…';
+        }
+        try {
+            const res = await fetch(checkOneUrl(id));
+            const data = await res.json();
+            applyStatus(data);
+            const cols = [...document.querySelectorAll('.device-col')];
+            const up = cols.filter(c => c.dataset.status === 'up').length;
+            const upEl = document.getElementById('up-count');
+            const downEl = document.getElementById('down-count');
+            if (upEl) upEl.textContent = up;
+            if (downEl) downEl.textContent = cols.length - up;
+            filterDevices();
+        } catch (e) {
+            console.error(e);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-activity"></i> Ping now';
+            }
+        }
+    }
+
+    document.getElementById('refresh-btn')?.addEventListener('click', checkAll);
+    document.querySelectorAll('[data-filter]').forEach(el => {
+        el.addEventListener('click', () => setFilter(el.dataset.filter));
+    });
+    searchInput?.addEventListener('input', filterDevices);
+    document.getElementById('clear-filters')?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        setFilter('all');
+    });
+
+    document.querySelectorAll('.mini-card[data-id]').forEach(card => {
+        card.addEventListener('click', () => openDrawer(Number(card.dataset.id)));
+    });
+
+    document.getElementById('drawer-close')?.addEventListener('click', closeDrawer);
+    backdrop?.addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && drawer?.classList.contains('open')) closeDrawer();
+    });
+
+    document.getElementById('drawer-copy-ip')?.addEventListener('click', async () => {
+        const ip = document.getElementById('drawer-copy-ip').dataset.copy;
+        if (!ip) return;
+        try {
+            await navigator.clipboard.writeText(ip);
+            showToast('IP copied');
+        } catch (_) {}
+    });
+
+    document.getElementById('drawer-ping-btn')?.addEventListener('click', () => {
+        const id = document.getElementById('drawer-ping-btn').dataset.check;
+        if (id) checkOne(Number(id));
+    });
+
+    {% if devices %}
+    checkAll();
+    setInterval(checkAll, 15000);
+    {% endif %}
+})();
 </script>
 {% endblock %}
