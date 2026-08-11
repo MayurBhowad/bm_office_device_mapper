@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import ipaddress
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -11,12 +12,21 @@ from .models import Department, Device
 from .utils import check_device
 
 
+def _ip_sort_key(device):
+    """Numeric IP order so 192.168.1.2 comes before 192.168.1.100."""
+    try:
+        return (0, int(ipaddress.ip_address(device.ip_address)))
+    except ValueError:
+        return (1, device.ip_address or "")
+
+
 @login_required
 def dashboard(request):
     """Main dashboard: shows every device as a card. Cards are pre-rendered
     with whatever status is stored in the DB; the page then calls
     /api/check-all/ via JS to refresh statuses live without a full reload."""
     devices = list(Device.objects.select_related("department").all())
+    devices.sort(key=_ip_sort_key)
     up_count = sum(1 for d in devices if d.is_up)
     total_count = len(devices)
     departments = list(Department.objects.order_by("name"))

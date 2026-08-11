@@ -170,13 +170,17 @@
     .filter-btn:hover { color: var(--ink); }
     .filter-btn.active { background: var(--slate-soft); color: var(--ink); }
 
-    .dept-filter {
+    .dept-filter,
+    .sort-filter {
         position: relative;
         flex: 0 1 180px;
         min-width: 140px;
     }
 
-    .dept-filter i {
+    .sort-filter { flex: 0 1 150px; min-width: 130px; }
+
+    .dept-filter i,
+    .sort-filter i {
         position: absolute;
         left: 0.75rem;
         top: 50%;
@@ -186,7 +190,8 @@
         font-size: 0.85rem;
     }
 
-    .dept-filter select {
+    .dept-filter select,
+    .sort-filter select {
         width: 100%;
         padding: 0.55rem 2rem 0.55rem 2.1rem;
         border: 1px solid var(--line);
@@ -205,7 +210,8 @@
         transition: border-color 0.15s, box-shadow 0.15s;
     }
 
-    .dept-filter select:focus {
+    .dept-filter select:focus,
+    .sort-filter select:focus {
         border-color: var(--teal);
         box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
     }
@@ -659,7 +665,8 @@
     @media (max-width: 640px) {
         .stat-row { grid-template-columns: 1fr; }
         .dash-header .btn-app { width: 100%; }
-        .dept-filter { flex: 1 1 100%; }
+        .dept-filter,
+        .sort-filter { flex: 1 1 100%; }
         #device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     }
 </style>
@@ -711,6 +718,14 @@
             {% if has_unassigned %}
             <option value="__none__">Unassigned</option>
             {% endif %}
+        </select>
+    </div>
+    <div class="sort-filter">
+        <i class="bi bi-sort-down"></i>
+        <select id="sort-filter" aria-label="Sort devices">
+            <option value="ip" selected>Sort by IP</option>
+            <option value="name">Sort by name</option>
+            <option value="port">Sort by port</option>
         </select>
     </div>
     <div class="filter-group" role="group" aria-label="Status filter">
@@ -856,10 +871,12 @@
     let selectedId = null;
     const searchInput = document.getElementById('device-search');
     const deptFilter = document.getElementById('dept-filter');
+    const sortFilter = document.getElementById('sort-filter');
     const emptyFilter = document.getElementById('empty-filter');
     const toast = document.getElementById('toast-copy');
     const drawer = document.getElementById('device-drawer');
     const backdrop = document.getElementById('drawer-backdrop');
+    const deviceGrid = document.getElementById('device-grid');
     const checkOneUrl = (id) => `{% url 'check_one' 0 %}`.replace('/0/', `/${id}/`);
 
     const devicesMap = {};
@@ -938,6 +955,38 @@
         if (upEl) upEl.textContent = up;
         if (downEl) downEl.textContent = devices.length - up;
         if (totalEl) totalEl.textContent = devices.length;
+    }
+
+    function ipToNum(ip) {
+        const parts = String(ip || '').split('.').map(Number);
+        if (parts.length !== 4 || parts.some(n => Number.isNaN(n) || n < 0 || n > 255)) return Number.MAX_SAFE_INTEGER;
+        return ((parts[0] * 256 + parts[1]) * 256 + parts[2]) * 256 + parts[3];
+    }
+
+    function compareCols(a, b, mode) {
+        if (mode === 'name') {
+            return (a.dataset.employee || '').localeCompare(b.dataset.employee || '', undefined, {
+                sensitivity: 'base',
+            });
+        }
+        if (mode === 'port') {
+            const pa = (a.dataset.port || '').trim();
+            const pb = (b.dataset.port || '').trim();
+            if (!pa && !pb) return 0;
+            if (!pa) return 1;
+            if (!pb) return -1;
+            return pa.localeCompare(pb, undefined, { numeric: true, sensitivity: 'base' });
+        }
+        // ip (default)
+        return ipToNum(a.dataset.ip) - ipToNum(b.dataset.ip);
+    }
+
+    function sortDevices() {
+        if (!deviceGrid) return;
+        const mode = sortFilter ? sortFilter.value : 'ip';
+        const cols = [...deviceGrid.querySelectorAll('.device-col')];
+        cols.sort((a, b) => compareCols(a, b, mode));
+        cols.forEach(col => deviceGrid.appendChild(col));
     }
 
     function filterDevices() {
@@ -1093,9 +1142,15 @@
     });
     searchInput?.addEventListener('input', filterDevices);
     deptFilter?.addEventListener('change', filterDevices);
+    sortFilter?.addEventListener('change', () => {
+        sortDevices();
+        filterDevices();
+    });
     document.getElementById('clear-filters')?.addEventListener('click', () => {
         if (searchInput) searchInput.value = '';
         if (deptFilter) deptFilter.value = '';
+        if (sortFilter) sortFilter.value = 'ip';
+        sortDevices();
         setFilter('all');
     });
 

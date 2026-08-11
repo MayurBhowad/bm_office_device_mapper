@@ -46,7 +46,7 @@ class Device(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["employee"]
+        ordering = ["ip_address"]
 
     def __str__(self):
         return f"{self.employee} ({self.ip_address})"
