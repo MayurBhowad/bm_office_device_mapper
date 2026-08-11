@@ -780,7 +780,7 @@
                     {% if device.is_up %}Online{% else %}Offline{% endif %}
                 </span>
                 <span class="mini-ping" id="ping-{{ device.id }}">
-                    {% if device.last_response_ms %}{{ device.last_response_ms|floatformat:0 }}ms{% else %}—{% endif %}
+                    {% if device.last_response_ms and device.port %}{{ device.last_response_ms|floatformat:0 }}ms | {{ device.port }}{% elif device.last_response_ms %}{{ device.last_response_ms|floatformat:0 }}ms{% elif device.port %}{{ device.port }}{% else %}—{% endif %}
                 </span>
             </div>
         </button>
@@ -934,7 +934,9 @@
             badge.className = `mini-status ${d.is_up ? 'up' : 'down'}`;
         }
         if (ping) {
-            ping.textContent = d.response_ms != null ? `${Math.round(d.response_ms)}ms` : '—';
+            const port = (devicesMap[d.id] && devicesMap[d.id].port) || '';
+            const ms = d.response_ms != null ? `${Math.round(d.response_ms)}ms` : '';
+            ping.textContent = (ms && port) ? `${ms} | ${port}` : (ms || port || '—');
         }
 
         if (devicesMap[d.id]) {
