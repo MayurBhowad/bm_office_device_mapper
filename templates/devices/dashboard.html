@@ -843,8 +843,12 @@
                 <div class="val" id="drawer-employee-detail">—</div>
             </div>
             <div class="detail-row">
-                <div class="lbl">Port</div>
+                <div class="lbl">Switch port</div>
                 <div class="val mono" id="drawer-port">—</div>
+            </div>
+            <div class="detail-row">
+                <div class="lbl">TCP check</div>
+                <div class="val mono" id="drawer-check-port">—</div>
             </div>
             <div class="detail-row">
                 <div class="lbl">Department</div>
@@ -1042,6 +1046,7 @@
         document.getElementById('drawer-host').textContent = d.host || '—';
         document.getElementById('drawer-employee-detail').textContent = d.employee || '—';
         document.getElementById('drawer-port').textContent = d.port || '—';
+        document.getElementById('drawer-check-port').textContent = d.check_port != null ? d.check_port : '—';
         document.getElementById('drawer-department').textContent = d.department || '—';
         const bar = document.getElementById('drawer-latency');
         const ms = d.is_up ? d.response_ms : null;

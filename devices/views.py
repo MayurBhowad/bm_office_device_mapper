@@ -39,6 +39,7 @@ def dashboard(request):
             "host": d.host or "",
             "employee": d.employee,
             "port": d.port or "",
+            "check_port": d.check_port,
             "department": d.department.name if d.department else "",
             "is_up": d.is_up,
             "response_ms": d.last_response_ms,
@@ -110,7 +111,7 @@ def _serialize(device):
 
 @login_required
 def check_one(request, pk):
-    """Ping a single device on demand and return its fresh status as JSON."""
+    """Check a single device (ping, then optional TCP) and return fresh status."""
     device = get_object_or_404(Device, pk=pk)
     check_device(device)
     return JsonResponse(_serialize(device))
@@ -118,7 +119,7 @@ def check_one(request, pk):
 
 @login_required
 def check_all(request):
-    """Ping every device in parallel (thread pool, since ping is I/O bound)
+    """Check every device in parallel (thread pool; ping/TCP are I/O bound)
     and return fresh statuses for all of them as JSON."""
     devices = list(Device.objects.all())
 

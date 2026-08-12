@@ -1,10 +1,11 @@
 """
-Networking helpers: ping a host to see if it's up, and try to resolve its
-MAC address from the local ARP table (works only for hosts on the same
-LAN segment as the machine running Django).
+Networking helpers: check if a host is up via ICMP ping and/or TCP connect,
+and try to resolve its MAC address from the local ARP table (works only for
+hosts on the same LAN segment as the machine running Django).
 """
 import platform
 import re
+import socket
 import subprocess
 import time
 
@@ -40,6 +41,20 @@ def ping_host(ip_address: str, timeout_seconds: float = 1.5):
         return False, None
 
 
+def tcp_check(ip_address: str, port: int, timeout_seconds: float = 1.5):
+    """
+    Try a TCP connect to ip:port. Returns (is_up: bool, response_ms: float|None).
+    Succeeds if the handshake completes (port open / accepting).
+    """
+    start = time.time()
+    try:
+        with socket.create_connection((ip_address, int(port)), timeout=timeout_seconds):
+            elapsed_ms = round((time.time() - start) * 1000, 1)
+            return True, elapsed_ms
+    except (OSError, ValueError, TypeError):
+        return False, None
+
+
 _MAC_RE = re.compile(r"([0-9A-Fa-f]{2}([:-])){5}[0-9A-Fa-f]{2}")
 
 
@@ -68,10 +83,15 @@ def get_mac_from_arp(ip_address: str):
 
 def check_device(device):
     """
-    Ping a Device instance, try to refresh its MAC via ARP, and persist
-    the result on the model. Returns the (is_up, response_ms) tuple.
+    Mark a Device up if ICMP ping succeeds, or (when check_port is set) if a
+    TCP connect to that port succeeds. Refresh MAC via ARP when up.
+    Returns the (is_up, response_ms) tuple.
     """
     is_up, response_ms = ping_host(device.ip_address)
+
+    if not is_up and device.check_port:
+        is_up, response_ms = tcp_check(device.ip_address, device.check_port)
+
     mac = get_mac_from_arp(device.ip_address) if is_up else None
     device.mark_status(is_up, response_ms=response_ms, mac_address=mac)
     return is_up, response_ms

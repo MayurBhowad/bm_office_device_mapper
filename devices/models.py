@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -30,6 +31,12 @@ class Device(models.Model):
     )
     employee = models.CharField(max_length=100, help_text="Employee name (required)")
     port = models.CharField(max_length=50, blank=True, help_text="e.g. switch port 'Gi0/12' or '24'")
+    check_port = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(65535)],
+        help_text="Optional TCP port for up/down when ping is blocked (e.g. 445, 22, 3389, 80)",
+    )
     department = models.ForeignKey(
         Department,
         on_delete=models.SET_NULL,
