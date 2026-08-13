@@ -41,6 +41,8 @@ def dashboard(request):
             "port": d.port or "",
             "check_port": d.check_port,
             "department": d.department.name if d.department else "",
+            "category": d.category,
+            "category_label": d.get_category_display(),
             "is_up": d.is_up,
             "response_ms": d.last_response_ms,
             "last_checked": d.last_checked.strftime("%H:%M:%S") if d.last_checked else "",

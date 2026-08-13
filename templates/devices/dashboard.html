@@ -171,6 +171,7 @@
     .filter-btn.active { background: var(--slate-soft); color: var(--ink); }
 
     .dept-filter,
+    .category-filter,
     .sort-filter {
         position: relative;
         flex: 0 1 180px;
@@ -180,6 +181,7 @@
     .sort-filter { flex: 0 1 150px; min-width: 130px; }
 
     .dept-filter i,
+    .category-filter i,
     .sort-filter i {
         position: absolute;
         left: 0.75rem;
@@ -191,6 +193,7 @@
     }
 
     .dept-filter select,
+    .category-filter select,
     .sort-filter select {
         width: 100%;
         padding: 0.55rem 2rem 0.55rem 2.1rem;
@@ -211,6 +214,7 @@
     }
 
     .dept-filter select:focus,
+    .category-filter select:focus,
     .sort-filter select:focus {
         border-color: var(--teal);
         box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
@@ -666,6 +670,7 @@
         .stat-row { grid-template-columns: 1fr; }
         .dash-header .btn-app { width: 100%; }
         .dept-filter,
+        .category-filter,
         .sort-filter { flex: 1 1 100%; }
         #device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     }
@@ -707,6 +712,16 @@
     <div class="search-box">
         <i class="bi bi-search"></i>
         <input type="search" id="device-search" placeholder="Search employee, IP, MAC, host, port…" autocomplete="off">
+    </div>
+    <div class="category-filter">
+        <i class="bi bi-layers"></i>
+        <select id="category-filter" aria-label="Device type filter">
+            <option value="">All types</option>
+            <option value="pc">PCs</option>
+            <option value="printer">Printers</option>
+            <option value="centralized">Centralized</option>
+            <option value="access_point">Access Points</option>
+        </select>
     </div>
     <div class="dept-filter">
         <i class="bi bi-building"></i>
@@ -764,6 +779,7 @@
          data-host="{{ device.host|lower }}"
          data-port="{{ device.port|lower }}"
          data-department="{% if device.department %}{{ device.department.name|lower }}{% endif %}"
+         data-category="{{ device.category }}"
          data-status="{% if device.is_up %}up{% else %}down{% endif %}">
         <button type="button"
                 class="mini-card {% if device.is_up %}up{% else %}down{% endif %}"
@@ -851,6 +867,10 @@
                 <div class="val mono" id="drawer-check-port">—</div>
             </div>
             <div class="detail-row">
+                <div class="lbl">Type</div>
+                <div class="val" id="drawer-category">—</div>
+            </div>
+            <div class="detail-row">
                 <div class="lbl">Department</div>
                 <div class="val" id="drawer-department">—</div>
             </div>
@@ -875,6 +895,7 @@
     let selectedId = null;
     const searchInput = document.getElementById('device-search');
     const deptFilter = document.getElementById('dept-filter');
+    const categoryFilter = document.getElementById('category-filter');
     const sortFilter = document.getElementById('sort-filter');
     const emptyFilter = document.getElementById('empty-filter');
     const toast = document.getElementById('toast-copy');
@@ -998,6 +1019,7 @@
     function filterDevices() {
         const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
         const dept = deptFilter ? deptFilter.value : '';
+        const category = categoryFilter ? categoryFilter.value : '';
         const cols = document.querySelectorAll('.device-col');
         let visible = 0;
         cols.forEach(col => {
@@ -1005,8 +1027,9 @@
             const colDept = col.dataset.department || '';
             const deptOk = !dept
                 || (dept === '__none__' ? !colDept : colDept === dept);
-            const hay = `${col.dataset.employee} ${col.dataset.ip} ${col.dataset.mac || ''} ${col.dataset.host || ''} ${col.dataset.port || ''} ${colDept}`;
-            const show = statusOk && deptOk && (!q || hay.includes(q));
+            const categoryOk = !category || (col.dataset.category || '') === category;
+            const hay = `${col.dataset.employee} ${col.dataset.ip} ${col.dataset.mac || ''} ${col.dataset.host || ''} ${col.dataset.port || ''} ${colDept} ${col.dataset.category || ''}`;
+            const show = statusOk && deptOk && categoryOk && (!q || hay.includes(q));
             col.classList.toggle('hidden-by-filter', !show);
             if (show) visible++;
         });
@@ -1048,6 +1071,7 @@
         document.getElementById('drawer-port').textContent = d.port || '—';
         document.getElementById('drawer-check-port').textContent = d.check_port != null ? d.check_port : '—';
         document.getElementById('drawer-department').textContent = d.department || '—';
+        document.getElementById('drawer-category').textContent = d.category_label || d.category || '—';
         const bar = document.getElementById('drawer-latency');
         const ms = d.is_up ? d.response_ms : null;
         bar.className = `latency-fill ${latencyClass(ms)}`;
@@ -1149,6 +1173,7 @@
     });
     searchInput?.addEventListener('input', filterDevices);
     deptFilter?.addEventListener('change', filterDevices);
+    categoryFilter?.addEventListener('change', filterDevices);
     sortFilter?.addEventListener('change', () => {
         sortDevices();
         filterDevices();
@@ -1156,6 +1181,7 @@
     document.getElementById('clear-filters')?.addEventListener('click', () => {
         if (searchInput) searchInput.value = '';
         if (deptFilter) deptFilter.value = '';
+        if (categoryFilter) categoryFilter.value = '';
         if (sortFilter) sortFilter.value = 'ip';
         sortDevices();
         setFilter('all');

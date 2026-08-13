@@ -18,9 +18,10 @@ class DeviceAdmin(admin.ModelAdmin):
         "port",
         "check_port",
         "department",
+        "category",
         "is_up",
         "last_checked",
     )
-    list_filter = ("is_up", "department")
+    list_filter = ("is_up", "category", "department")
     search_fields = ("ip_address", "mac_address", "host", "employee", "port", "department__name")
     autocomplete_fields = ("department",)

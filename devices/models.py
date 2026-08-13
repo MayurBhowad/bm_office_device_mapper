@@ -18,6 +18,17 @@ class Department(models.Model):
 class Device(models.Model):
     """A network device (PC, server, printer, etc.) tracked on the LAN."""
 
+    CATEGORY_PC = "pc"
+    CATEGORY_PRINTER = "printer"
+    CATEGORY_CENTRALIZED = "centralized"
+    CATEGORY_ACCESS_POINT = "access_point"
+    CATEGORY_CHOICES = [
+        (CATEGORY_PC, "PC"),
+        (CATEGORY_PRINTER, "Printer"),
+        (CATEGORY_CENTRALIZED, "Centralized"),
+        (CATEGORY_ACCESS_POINT, "Access Point"),
+    ]
+
     ip_address = models.GenericIPAddressField(unique=True, help_text="e.g. 192.168.1.25")
     mac_address = models.CharField(
         max_length=17,
@@ -43,6 +54,13 @@ class Device(models.Model):
         null=True,
         blank=True,
         related_name="devices",
+    )
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default=CATEGORY_PC,
+        db_index=True,
+        help_text="Sheet / device type: PC, Printer, Centralized, Access Point",
     )
 
     is_up = models.BooleanField(default=False)

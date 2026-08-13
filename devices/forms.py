@@ -13,6 +13,7 @@ class DeviceForm(forms.ModelForm):
             "port",
             "check_port",
             "department",
+            "category",
         ]
         labels = {
             "ip_address": "IP",
@@ -22,6 +23,7 @@ class DeviceForm(forms.ModelForm):
             "port": "Switch port",
             "check_port": "TCP check port",
             "department": "Department",
+            "category": "Type",
         }
         widgets = {
             "ip_address": forms.TextInput(attrs={"class": "form-control", "placeholder": "192.168.1.25"}),
@@ -38,6 +40,7 @@ class DeviceForm(forms.ModelForm):
                 }
             ),
             "department": forms.Select(attrs={"class": "form-control"}),
+            "category": forms.Select(attrs={"class": "form-control"}),
         }
 
     def clean_check_port(self):

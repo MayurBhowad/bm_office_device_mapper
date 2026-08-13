@@ -6,7 +6,7 @@
         <div class="form-panel">
             <p class="text-muted small mb-1" style="font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">Device</p>
             <h1 class="form-title">{{ title }}</h1>
-            <p class="text-muted mb-4" style="font-size:0.9rem;">IP must be unique. Employee is required; Host, MAC, and TCP check port can be left empty. If ping is blocked, set TCP check port (e.g. 445 / 22 / 3389).</p>
+            <p class="text-muted mb-4" style="font-size:0.9rem;">IP must be unique. Employee is required; Host, MAC, and TCP check port can be left empty. Type is PC / Printer / Centralized / Access Point. If ping is blocked, set TCP check port (e.g. 445 / 22 / 3389).</p>
             <form method="post" novalidate>
                 {% csrf_token %}
                 {% for field in form %}
