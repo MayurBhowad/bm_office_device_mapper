@@ -56,6 +56,9 @@ def tcp_check(ip_address: str, port: int, timeout_seconds: float = 1.5):
 
 
 _MAC_RE = re.compile(r"([0-9A-Fa-f]{2}([:-])){5}[0-9A-Fa-f]{2}")
+# Kernel neighbor states that mean the host answered ARP recently.
+# STALE/FAILED/INCOMPLETE are excluded: STALE is an old cache, not a live check.
+_NEIGH_UP_STATES = frozenset({"REACHABLE", "DELAY", "PROBE", "PERMANENT"})
 
 
 def get_mac_from_arp(ip_address: str):
@@ -81,16 +84,46 @@ def get_mac_from_arp(ip_address: str):
     return None
 
 
+def neigh_reachable(ip_address: str):
+    """
+    True if the kernel neighbor table says this IP answered ARP/ND recently.
+
+    Ping already triggers ARP. Mesh APs (e.g. TP-Link Deco) often ignore ICMP
+    and expose no TCP port, but they still reply to ARP, so they would look
+    permanently down without this fallback. Linux only (`ip neigh`).
+    """
+    try:
+        result = subprocess.run(
+            ["ip", "neigh", "show", ip_address],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=3,
+            text=True,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return False
+
+    line = (result.stdout or "").strip()
+    if not line:
+        return False
+    state = line.split()[-1].upper()
+    return state in _NEIGH_UP_STATES
+
+
 def check_device(device):
     """
     Mark a Device up if ICMP ping succeeds, or (when check_port is set) if a
-    TCP connect to that port succeeds. Refresh MAC via ARP when up.
+    TCP connect to that port succeeds, or if ARP neighbor state is reachable.
+    Refresh MAC via ARP when up.
     Returns the (is_up, response_ms) tuple.
     """
     is_up, response_ms = ping_host(device.ip_address)
 
     if not is_up and device.check_port:
         is_up, response_ms = tcp_check(device.ip_address, device.check_port)
+
+    if not is_up and neigh_reachable(device.ip_address):
+        is_up, response_ms = True, None
 
     mac = get_mac_from_arp(device.ip_address) if is_up else None
     device.mark_status(is_up, response_ms=response_ms, mac_address=mac)
