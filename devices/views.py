@@ -101,6 +101,7 @@ def device_delete(request, pk):
 
 
 def _serialize(device):
+    probes = getattr(device, "_probes", None) or {}
     return {
         "id": device.id,
         "is_up": device.is_up,
@@ -108,6 +109,13 @@ def _serialize(device):
         "mac_address": device.mac_address or None,
         "last_checked": device.last_checked.strftime("%H:%M:%S") if device.last_checked else None,
         "last_seen_up": device.last_seen_up.strftime("%Y-%m-%d %H:%M:%S") if device.last_seen_up else None,
+        "probes": {
+            "ping": probes.get("ping"),
+            "tcp": probes.get("tcp"),
+            "arp": probes.get("arp"),
+            "ping_ms": probes.get("ping_ms"),
+            "tcp_ms": probes.get("tcp_ms"),
+        },
     }
 
 

@@ -386,7 +386,7 @@
         top: 0;
         right: 0;
         height: 100%;
-        width: min(400px, 100vw);
+        width: min(540px, 100vw);
         background: var(--drawer-bg);
         box-shadow: -12px 0 40px rgba(15, 23, 42, 0.12);
         z-index: 310;
@@ -560,10 +560,80 @@
 
     .ip-block:hover .ip-block-copy { color: #5eead4; background: rgba(13, 148, 136, 0.25); }
 
+    .drawer-section {
+        margin-bottom: 1.25rem;
+    }
+
+    .drawer-section-title {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.55rem;
+    }
+
+    .drawer-section-title i { font-size: 0.85rem; }
+
     .detail-grid {
         display: grid;
         gap: 0.55rem;
-        margin-bottom: 1rem;
+        margin-bottom: 0;
+    }
+
+    .probe-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.28rem 0.7rem;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        border: none;
+        line-height: 1.2;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .probe-btn .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .probe-btn.ok {
+        background: var(--teal-soft);
+        color: var(--teal-deep);
+    }
+
+    .probe-btn.ok .dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+    .probe-btn.fail {
+        background: var(--coral-soft);
+        color: var(--coral);
+    }
+
+    .probe-btn.na {
+        background: rgba(37, 99, 235, 0.12);
+        color: #2563eb;
+    }
+
+    [data-theme="dark"] .probe-btn.na {
+        background: rgba(96, 165, 250, 0.16);
+        color: #93c5fd;
+    }
+
+    .probe-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.2rem;
     }
 
     .detail-row {
@@ -834,47 +904,70 @@
             <span class="ip-block-copy"><i class="bi bi-clipboard"></i></span>
         </button>
 
-        <div class="detail-grid">
-            <div class="detail-row">
-                <div>
-                    <div class="lbl">Ping</div>
-                    <div class="latency-track"><div class="latency-fill none" id="drawer-latency"></div></div>
+        <section class="drawer-section" aria-labelledby="drawer-alive-title">
+            <h3 class="drawer-section-title" id="drawer-alive-title">
+                <i class="bi bi-broadcast-pin"></i> Alive via
+            </h3>
+            <div class="detail-grid">
+                <div class="detail-row">
+                    <div>
+                        <div class="lbl">ICMP ping</div>
+                        <div class="latency-track"><div class="latency-fill none" id="drawer-latency"></div></div>
+                    </div>
+                    <div class="probe-meta">
+                        <span class="probe-btn na" id="drawer-probe-ping"><span class="dot"></span> N/A</span>
+                        <div class="val" id="drawer-ping">—</div>
+                    </div>
                 </div>
-                <div class="val" id="drawer-ping">—</div>
+                <div class="detail-row">
+                    <div class="lbl">TCP port <span id="drawer-check-port-lbl"></span></div>
+                    <div class="probe-meta">
+                        <span class="probe-btn na" id="drawer-probe-tcp"><span class="dot"></span> N/A</span>
+                        <div class="val mono" id="drawer-check-port">—</div>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">ARP neighbor</div>
+                    <span class="probe-btn na" id="drawer-probe-arp"><span class="dot"></span> N/A</span>
+                </div>
             </div>
-            <div class="detail-row">
-                <div class="lbl">Last checked</div>
-                <div class="val" id="drawer-checked">never</div>
+        </section>
+
+        <section class="drawer-section" aria-labelledby="drawer-details-title">
+            <h3 class="drawer-section-title" id="drawer-details-title">
+                <i class="bi bi-info-circle"></i> Device details
+            </h3>
+            <div class="detail-grid">
+                <div class="detail-row">
+                    <div class="lbl">Last checked</div>
+                    <div class="val" id="drawer-checked">never</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">MAC</div>
+                    <div class="val mono" id="drawer-mac">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Host</div>
+                    <div class="val mono" id="drawer-host">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Employee</div>
+                    <div class="val" id="drawer-employee-detail">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Switch port</div>
+                    <div class="val mono" id="drawer-port">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Type</div>
+                    <div class="val" id="drawer-category">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Department</div>
+                    <div class="val" id="drawer-department">—</div>
+                </div>
             </div>
-            <div class="detail-row">
-                <div class="lbl">MAC</div>
-                <div class="val mono" id="drawer-mac">—</div>
-            </div>
-            <div class="detail-row">
-                <div class="lbl">Host</div>
-                <div class="val mono" id="drawer-host">—</div>
-            </div>
-            <div class="detail-row">
-                <div class="lbl">Employee</div>
-                <div class="val" id="drawer-employee-detail">—</div>
-            </div>
-            <div class="detail-row">
-                <div class="lbl">Switch port</div>
-                <div class="val mono" id="drawer-port">—</div>
-            </div>
-            <div class="detail-row">
-                <div class="lbl">TCP check</div>
-                <div class="val mono" id="drawer-check-port">—</div>
-            </div>
-            <div class="detail-row">
-                <div class="lbl">Type</div>
-                <div class="val" id="drawer-category">—</div>
-            </div>
-            <div class="detail-row">
-                <div class="lbl">Department</div>
-                <div class="val" id="drawer-department">—</div>
-            </div>
-        </div>
+        </section>
     </div>
     <div class="drawer-footer">
         <button type="button" class="btn-app btn-app-primary" id="drawer-ping-btn">
@@ -969,6 +1062,7 @@
             devicesMap[d.id].response_ms = d.response_ms;
             devicesMap[d.id].last_checked = d.last_checked || '';
             if (d.mac_address) devicesMap[d.id].mac = d.mac_address;
+            if (d.probes) devicesMap[d.id].probes = d.probes;
         }
 
         if (selectedId === d.id) fillDrawer(devicesMap[d.id]);
@@ -1048,6 +1142,22 @@
         filterDevices();
     }
 
+    function setProbeBtn(id, state) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        let cls = 'na';
+        let label = 'N/A';
+        if (state === true) {
+            cls = 'ok';
+            label = 'Up';
+        } else if (state === false) {
+            cls = 'fail';
+            label = 'Down';
+        }
+        el.className = `probe-btn ${cls}`;
+        el.innerHTML = `<span class="dot"></span> ${label}`;
+    }
+
     function fillDrawer(d) {
         if (!d) return;
         const header = document.getElementById('drawer-header');
@@ -1063,17 +1173,30 @@
             : `<i class="bi bi-hdd-network"></i> <span>Network device</span>`;
         document.getElementById('drawer-ip').textContent = d.ip;
         document.getElementById('drawer-copy-ip').dataset.copy = d.ip;
-        document.getElementById('drawer-ping').textContent = d.response_ms != null ? `${d.response_ms} ms` : '—';
+        const probes = d.probes || {};
+        const pingMs = probes.ping_ms != null ? probes.ping_ms : (probes.ping === true ? d.response_ms : null);
+        const tcpMs = probes.tcp_ms;
+        document.getElementById('drawer-ping').textContent = pingMs != null ? `${pingMs} ms` : '—';
+        setProbeBtn('drawer-probe-ping', probes.ping);
+        setProbeBtn('drawer-probe-tcp', probes.tcp);
+        setProbeBtn('drawer-probe-arp', probes.arp);
+        const checkPortLbl = document.getElementById('drawer-check-port-lbl');
+        if (d.check_port != null) {
+            checkPortLbl.textContent = d.check_port;
+            document.getElementById('drawer-check-port').textContent = tcpMs != null ? `${tcpMs} ms` : '—';
+        } else {
+            checkPortLbl.textContent = '';
+            document.getElementById('drawer-check-port').textContent = 'not set';
+        }
         document.getElementById('drawer-checked').textContent = d.last_checked || 'never';
         document.getElementById('drawer-mac').textContent = d.mac || 'Not detected yet';
         document.getElementById('drawer-host').textContent = d.host || '—';
         document.getElementById('drawer-employee-detail').textContent = d.employee || '—';
         document.getElementById('drawer-port').textContent = d.port || '—';
-        document.getElementById('drawer-check-port').textContent = d.check_port != null ? d.check_port : '—';
         document.getElementById('drawer-department').textContent = d.department || '—';
         document.getElementById('drawer-category').textContent = d.category_label || d.category || '—';
         const bar = document.getElementById('drawer-latency');
-        const ms = d.is_up ? d.response_ms : null;
+        const ms = probes.ping === true ? pingMs : null;
         bar.className = `latency-fill ${latencyClass(ms)}`;
         bar.style.width = `${latencyWidth(ms)}%`;
         document.getElementById('drawer-edit').href = d.edit_url;

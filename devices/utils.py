@@ -112,19 +112,30 @@ def neigh_reachable(ip_address: str):
 
 def check_device(device):
     """
-    Mark a Device up if ICMP ping succeeds, or (when check_port is set) if a
-    TCP connect to that port succeeds, or if ARP neighbor state is reachable.
-    Refresh MAC via ARP when up.
+    Run ICMP ping, optional TCP connect, and ARP neighbor checks independently.
+    Mark a Device up if any of those succeed. Refresh MAC via ARP when up.
+    Stores per-method results on device._probes for the API/UI.
     Returns the (is_up, response_ms) tuple.
     """
-    is_up, response_ms = ping_host(device.ip_address)
+    ping_up, ping_ms = ping_host(device.ip_address)
 
-    if not is_up and device.check_port:
-        is_up, response_ms = tcp_check(device.ip_address, device.check_port)
+    tcp_up = None
+    tcp_ms = None
+    if device.check_port:
+        tcp_up, tcp_ms = tcp_check(device.ip_address, device.check_port)
 
-    if not is_up and neigh_reachable(device.ip_address):
-        is_up, response_ms = True, None
+    arp_up = neigh_reachable(device.ip_address)
+
+    is_up = bool(ping_up or tcp_up or arp_up)
+    response_ms = ping_ms if ping_up else (tcp_ms if tcp_up else None)
 
     mac = get_mac_from_arp(device.ip_address) if is_up else None
     device.mark_status(is_up, response_ms=response_ms, mac_address=mac)
+    device._probes = {
+        "ping": ping_up,
+        "tcp": tcp_up,
+        "arp": arp_up,
+        "ping_ms": ping_ms,
+        "tcp_ms": tcp_ms,
+    }
     return is_up, response_ms
