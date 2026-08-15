@@ -2,12 +2,96 @@
 Networking helpers: check if a host is up via ICMP ping and/or TCP connect,
 and try to resolve its MAC address from the local ARP table (works only for
 hosts on the same LAN segment as the machine running Django).
+
+Unmanaged switches have no IP, so their live status is inferred from devices
+whose desk ports (D-1, D-2, …) fall in the switch's port range.
 """
+from concurrent.futures import ThreadPoolExecutor
 import platform
 import re
 import socket
 import subprocess
 import time
+
+_DESK_PORT_RE = re.compile(r"^D-(\d+)$", re.IGNORECASE)
+
+
+def parse_desk_port(value):
+    """Return the integer in 'D-12' / 'd-12' / '12', or None if not a desk port."""
+    if not value:
+        return None
+    text = str(value).strip()
+    match = _DESK_PORT_RE.match(text)
+    if match:
+        return int(match.group(1))
+    if text.isdigit():
+        return int(text)
+    return None
+
+
+def normalize_desk_port(value):
+    """Canonical 'D-12' when the value is a desk port; otherwise stripped original."""
+    number = parse_desk_port(value)
+    if number is None:
+        return (value or "").strip()
+    return f"D-{number}"
+
+
+def switch_port_bounds(switch):
+    """(low, high) inclusive port numbers for a switch, or None if unset/invalid."""
+    low = parse_desk_port(getattr(switch, "port_from", None))
+    high = parse_desk_port(getattr(switch, "port_to", None))
+    if low is None or high is None:
+        return None
+    if low > high:
+        low, high = high, low
+    return low, high
+
+
+def port_on_switch(port, switch):
+    bounds = switch_port_bounds(switch)
+    number = parse_desk_port(port)
+    if bounds is None or number is None:
+        return False
+    low, high = bounds
+    return low <= number <= high
+
+
+def devices_on_switch(switch, candidates):
+    """Endpoint devices whose port sits in this switch's D-n range."""
+    return [
+        device for device in candidates
+        if getattr(device, "category", None) != getattr(device, "CATEGORY_SWITCH", "switch")
+        and port_on_switch(device.port, switch)
+    ]
+
+
+def find_switch_for_port(port, switches):
+    """First switch whose range contains this desk port, or None."""
+    for switch in switches:
+        if port_on_switch(port, switch):
+            return switch
+    return None
+
+
+def infer_switch_status(switch, candidates):
+    """
+    Mark an unmanaged switch up if any device on its ports is currently up.
+    Stores member counts on switch._probes for the API/UI.
+    """
+    members = devices_on_switch(switch, candidates)
+    up_members = [m for m in members if m.is_up]
+    is_up = bool(up_members)
+    switch.mark_status(is_up, response_ms=None)
+    switch._probes = {
+        "ping": None,
+        "tcp": None,
+        "arp": None,
+        "inferred": True,
+        "members_up": len(up_members),
+        "members_total": len(members),
+    }
+    return is_up, None
 
 
 def ping_host(ip_address: str, timeout_seconds: float = 1.5):
@@ -116,7 +200,26 @@ def check_device(device):
     Mark a Device up if any of those succeed. Refresh MAC via ARP when up.
     Stores per-method results on device._probes for the API/UI.
     Returns the (is_up, response_ms) tuple.
+
+    Unmanaged switches are not pinged here; use infer_switch_status() after
+    endpoint devices have been checked.
     """
+    if device.category == getattr(device, "CATEGORY_SWITCH", "switch"):
+        from .models import Device as DeviceModel
+        members = list(DeviceModel.objects.exclude(category=DeviceModel.CATEGORY_SWITCH))
+        return infer_switch_status(device, members)
+
+    if not device.ip_address:
+        device.mark_status(False, response_ms=None)
+        device._probes = {
+            "ping": None,
+            "tcp": None,
+            "arp": False,
+            "ping_ms": None,
+            "tcp_ms": None,
+        }
+        return False, None
+
     ping_up, ping_ms = ping_host(device.ip_address)
 
     tcp_up = None
@@ -139,3 +242,20 @@ def check_device(device):
         "tcp_ms": tcp_ms,
     }
     return is_up, response_ms
+
+
+def check_devices(devices):
+    """
+    Ping/TCP/ARP all non-switch devices in parallel, then infer each switch
+    from the devices on its port range.
+    """
+    endpoints = [d for d in devices if d.category != getattr(d, "CATEGORY_SWITCH", "switch")]
+    switches = [d for d in devices if d.category == getattr(d, "CATEGORY_SWITCH", "switch")]
+
+    if endpoints:
+        workers = min(32, len(endpoints))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(check_device, endpoints))
+
+    for switch in switches:
+        infer_switch_status(switch, endpoints)

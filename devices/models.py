@@ -22,14 +22,21 @@ class Device(models.Model):
     CATEGORY_PRINTER = "printer"
     CATEGORY_CENTRALIZED = "centralized"
     CATEGORY_ACCESS_POINT = "access_point"
+    CATEGORY_SWITCH = "switch"
     CATEGORY_CHOICES = [
         (CATEGORY_PC, "PC"),
         (CATEGORY_PRINTER, "Printer"),
         (CATEGORY_CENTRALIZED, "Centralized"),
         (CATEGORY_ACCESS_POINT, "Access Point"),
+        (CATEGORY_SWITCH, "Switch"),
     ]
 
-    ip_address = models.GenericIPAddressField(unique=True, help_text="e.g. 192.168.1.25")
+    ip_address = models.GenericIPAddressField(
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="e.g. 192.168.1.25 (leave empty for unmanaged switches)",
+    )
     mac_address = models.CharField(
         max_length=17,
         blank=True,
@@ -40,8 +47,25 @@ class Device(models.Model):
         blank=True,
         help_text="Hostname (optional), e.g. 'PC-RECEPTION-01'",
     )
-    employee = models.CharField(max_length=100, help_text="Employee name (required)")
-    port = models.CharField(max_length=50, blank=True, help_text="e.g. switch port 'Gi0/12' or '24'")
+    employee = models.CharField(
+        max_length=100,
+        help_text="Employee name, or switch name (e.g. Switch-1)",
+    )
+    port = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Desk/switch port, e.g. D-1 (must fall in a switch's range)",
+    )
+    port_from = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="First port on this switch, e.g. D-1",
+    )
+    port_to = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Last port on this switch, e.g. D-20",
+    )
     check_port = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -60,7 +84,7 @@ class Device(models.Model):
         choices=CATEGORY_CHOICES,
         default=CATEGORY_PC,
         db_index=True,
-        help_text="Sheet / device type: PC, Printer, Centralized, Access Point",
+        help_text="Device type: PC, Printer, Centralized, Access Point, Switch",
     )
 
     is_up = models.BooleanField(default=False)
@@ -74,7 +98,21 @@ class Device(models.Model):
         ordering = ["ip_address"]
 
     def __str__(self):
-        return f"{self.employee} ({self.ip_address})"
+        if self.ip_address:
+            return f"{self.employee} ({self.ip_address})"
+        if self.port_from and self.port_to:
+            return f"{self.employee} ({self.port_from}–{self.port_to})"
+        return self.employee
+
+    @property
+    def is_switch(self):
+        return self.category == self.CATEGORY_SWITCH
+
+    @property
+    def port_range_label(self):
+        if self.port_from and self.port_to:
+            return f"{self.port_from}–{self.port_to}"
+        return ""
 
     def mark_status(self, is_up: bool, response_ms=None, mac_address=None):
         self.is_up = is_up

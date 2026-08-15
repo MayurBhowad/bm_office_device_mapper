@@ -8,7 +8,7 @@
             <h1 class="form-title">Remove device?</h1>
             <p class="mb-1" style="font-weight:600;">{{ device.employee }}</p>
             <p class="text-muted mb-4" style="font-size:0.9rem;">
-                <span class="mono">{{ device.ip_address }}</span>
+                {% if device.ip_address %}<span class="mono">{{ device.ip_address }}</span>{% elif device.port_from and device.port_to %}<span class="mono">{{ device.port_from }}–{{ device.port_to }}</span>{% endif %}
                 {% if device.host %} · {{ device.host }}{% endif %}
                 {% if device.department %} · {{ device.department.name }}{% endif %}
             </p>

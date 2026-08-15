@@ -9,15 +9,41 @@ from django.urls import reverse
 
 from .forms import DeviceForm
 from .models import Department, Device
-from .utils import check_device
+from .utils import (
+    check_device,
+    check_devices,
+    devices_on_switch,
+    find_switch_for_port,
+    infer_switch_status,
+    parse_desk_port,
+)
 
 
 def _ip_sort_key(device):
-    """Numeric IP order so 192.168.1.2 comes before 192.168.1.100."""
-    try:
-        return (0, int(ipaddress.ip_address(device.ip_address)))
-    except ValueError:
-        return (1, device.ip_address or "")
+    """Numeric IP order so 192.168.1.2 comes before 192.168.1.100.
+    Switches (no IP) sort after addressed devices, by port range then name.
+    """
+    if device.ip_address:
+        try:
+            return (0, int(ipaddress.ip_address(device.ip_address)), "")
+        except ValueError:
+            return (2, 0, device.ip_address)
+    number = parse_desk_port(device.port_from if device.is_switch else device.port)
+    return (1, number if number is not None else 10**9, device.employee or "")
+
+
+def _map_switches(devices):
+    """Attach mapped_switch_id / mapped_switch_name for dashboard filter/cards."""
+    switches = [d for d in devices if d.is_switch]
+    for device in devices:
+        if device.is_switch:
+            device.mapped_switch_id = device.id
+            device.mapped_switch_name = device.employee
+        else:
+            switch = find_switch_for_port(device.port, switches)
+            device.mapped_switch_id = switch.id if switch else ""
+            device.mapped_switch_name = switch.employee if switch else ""
+    return switches
 
 
 @login_required
@@ -27,6 +53,7 @@ def dashboard(request):
     /api/check-all/ via JS to refresh statuses live without a full reload."""
     devices = list(Device.objects.select_related("department").all())
     devices.sort(key=_ip_sort_key)
+    switches = _map_switches(devices)
     up_count = sum(1 for d in devices if d.is_up)
     total_count = len(devices)
     departments = list(Department.objects.order_by("name"))
@@ -34,15 +61,20 @@ def dashboard(request):
     devices_json = [
         {
             "id": d.id,
-            "ip": d.ip_address,
+            "ip": d.ip_address or "",
             "mac": d.mac_address or "",
             "host": d.host or "",
             "employee": d.employee,
             "port": d.port or "",
+            "port_from": d.port_from or "",
+            "port_to": d.port_to or "",
             "check_port": d.check_port,
             "department": d.department.name if d.department else "",
             "category": d.category,
             "category_label": d.get_category_display(),
+            "is_switch": d.is_switch,
+            "switch_id": d.mapped_switch_id or "",
+            "switch_name": d.mapped_switch_name or "",
             "is_up": d.is_up,
             "response_ms": d.last_response_ms,
             "last_checked": d.last_checked.strftime("%H:%M:%S") if d.last_checked else "",
@@ -53,6 +85,7 @@ def dashboard(request):
     ]
     return render(request, "devices/dashboard.html", {
         "devices": devices,
+        "switches": switches,
         "up_count": up_count,
         "down_count": total_count - up_count,
         "total_count": total_count,
@@ -105,6 +138,7 @@ def _serialize(device):
     return {
         "id": device.id,
         "is_up": device.is_up,
+        "is_switch": device.is_switch,
         "response_ms": device.last_response_ms,
         "mac_address": device.mac_address or None,
         "last_checked": device.last_checked.strftime("%H:%M:%S") if device.last_checked else None,
@@ -115,26 +149,49 @@ def _serialize(device):
             "arp": probes.get("arp"),
             "ping_ms": probes.get("ping_ms"),
             "tcp_ms": probes.get("tcp_ms"),
+            "inferred": probes.get("inferred"),
+            "members_up": probes.get("members_up"),
+            "members_total": probes.get("members_total"),
         },
     }
 
 
 @login_required
 def check_one(request, pk):
-    """Check a single device (ping, then optional TCP) and return fresh status."""
+    """Check a single device (ping, then optional TCP) and return fresh status.
+    For a switch, re-check devices on its ports and infer live/down from those.
+    """
     device = get_object_or_404(Device, pk=pk)
-    check_device(device)
-    return JsonResponse(_serialize(device))
+    related = []
+
+    if device.is_switch:
+        endpoints = list(Device.objects.exclude(category=Device.CATEGORY_SWITCH))
+        members = devices_on_switch(device, endpoints)
+        if members:
+            workers = min(32, len(members))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                list(pool.map(check_device, members))
+        infer_switch_status(device, endpoints)
+        related = [_serialize(m) for m in members]
+    else:
+        check_device(device)
+        switches = list(Device.objects.filter(category=Device.CATEGORY_SWITCH))
+        parent = find_switch_for_port(device.port, switches)
+        if parent:
+            endpoints = list(Device.objects.exclude(category=Device.CATEGORY_SWITCH))
+            infer_switch_status(parent, endpoints)
+            related = [_serialize(parent)]
+
+    payload = _serialize(device)
+    payload["related"] = related
+    return JsonResponse(payload)
 
 
 @login_required
 def check_all(request):
-    """Check every device in parallel (thread pool; ping/TCP are I/O bound)
-    and return fresh statuses for all of them as JSON."""
+    """Ping/TCP/ARP endpoints in parallel, then infer unmanaged switch status
+    from devices on each switch's port range. Returns JSON for all devices."""
     devices = list(Device.objects.all())
-
     if devices:
-        with ThreadPoolExecutor(max_workers=min(32, len(devices))) as pool:
-            list(pool.map(check_device, devices))
-
+        check_devices(devices)
     return JsonResponse({"devices": [_serialize(d) for d in devices]})

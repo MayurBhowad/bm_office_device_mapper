@@ -172,6 +172,7 @@
 
     .dept-filter,
     .category-filter,
+    .switch-filter,
     .sort-filter {
         position: relative;
         flex: 0 1 180px;
@@ -182,6 +183,7 @@
 
     .dept-filter i,
     .category-filter i,
+    .switch-filter i,
     .sort-filter i {
         position: absolute;
         left: 0.75rem;
@@ -194,6 +196,7 @@
 
     .dept-filter select,
     .category-filter select,
+    .switch-filter select,
     .sort-filter select {
         width: 100%;
         padding: 0.55rem 2rem 0.55rem 2.1rem;
@@ -215,6 +218,7 @@
 
     .dept-filter select:focus,
     .category-filter select:focus,
+    .switch-filter select:focus,
     .sort-filter select:focus {
         border-color: var(--teal);
         box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
@@ -741,6 +745,7 @@
         .dash-header .btn-app { width: 100%; }
         .dept-filter,
         .category-filter,
+        .switch-filter,
         .sort-filter { flex: 1 1 100%; }
         #device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     }
@@ -781,7 +786,7 @@
 <div class="toolbar">
     <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="search" id="device-search" placeholder="Search employee, IP, MAC, host, port…" autocomplete="off">
+        <input type="search" id="device-search" placeholder="Search employee, IP, MAC, host, port, switch…" autocomplete="off">
     </div>
     <div class="category-filter">
         <i class="bi bi-layers"></i>
@@ -791,8 +796,20 @@
             <option value="printer">Printers</option>
             <option value="centralized">Centralized</option>
             <option value="access_point">Access Points</option>
+            <option value="switch">Switches</option>
         </select>
     </div>
+    {% if switches %}
+    <div class="switch-filter">
+        <i class="bi bi-diagram-3"></i>
+        <select id="switch-filter" aria-label="Switch filter">
+            <option value="">All switches</option>
+            {% for sw in switches %}
+            <option value="{{ sw.id }}">{{ sw.employee }} ({{ sw.port_from }}–{{ sw.port_to }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
     <div class="dept-filter">
         <i class="bi bi-building"></i>
         <select id="dept-filter" aria-label="Department filter">
@@ -847,12 +864,14 @@
          data-ip="{{ device.ip_address }}"
          data-mac="{{ device.mac_address|lower }}"
          data-host="{{ device.host|lower }}"
-         data-port="{{ device.port|lower }}"
+         data-port="{% if device.is_switch %}{{ device.port_from|lower }}{% else %}{{ device.port|lower }}{% endif %}"
          data-department="{% if device.department %}{{ device.department.name|lower }}{% endif %}"
          data-category="{{ device.category }}"
+         data-switch-id="{{ device.mapped_switch_id }}"
+         data-switch-name="{{ device.mapped_switch_name|lower }}"
          data-status="{% if device.is_up %}up{% else %}down{% endif %}">
         <button type="button"
-                class="mini-card {% if device.is_up %}up{% else %}down{% endif %}"
+                class="mini-card {% if device.is_up %}up{% else %}down{% endif %}{% if device.is_switch %} switch{% endif %}"
                 id="device-card-{{ device.id }}"
                 data-id="{{ device.id }}"
                 aria-expanded="false">
@@ -860,13 +879,13 @@
                 <h2 class="mini-name">{{ device.employee }}</h2>
                 <span class="mini-dot {% if device.is_up %}up{% else %}down{% endif %}" id="dot-{{ device.id }}"></span>
             </div>
-            <div class="mini-ip">{{ device.ip_address }}</div>
+            <div class="mini-ip">{% if device.is_switch %}{{ device.port_from }} – {{ device.port_to }}{% elif device.ip_address %}{{ device.ip_address }}{% else %}—{% endif %}</div>
             <div class="mini-meta">
                 <span class="mini-status {% if device.is_up %}up{% else %}down{% endif %}" id="badge-{{ device.id }}">
-                    {% if device.is_up %}Online{% else %}Offline{% endif %}
+                    {% if device.is_switch %}{% if device.is_up %}Live{% else %}No path{% endif %}{% elif device.is_up %}Online{% else %}Offline{% endif %}
                 </span>
                 <span class="mini-ping" id="ping-{{ device.id }}">
-                    {% if device.last_response_ms and device.port %}{{ device.last_response_ms|floatformat:0 }}ms | {{ device.port }}{% elif device.last_response_ms %}{{ device.last_response_ms|floatformat:0 }}ms{% elif device.port %}{{ device.port }}{% else %}—{% endif %}
+                    {% if device.is_switch %}{{ device.port_from }}–{{ device.port_to }}{% elif device.last_response_ms and device.port %}{{ device.last_response_ms|floatformat:0 }}ms | {{ device.port }}{% elif device.last_response_ms %}{{ device.last_response_ms|floatformat:0 }}ms{% elif device.port %}{{ device.port }}{% else %}—{% endif %}
                 </span>
             </div>
         </button>
@@ -904,7 +923,7 @@
             <span class="ip-block-copy"><i class="bi bi-clipboard"></i></span>
         </button>
 
-        <section class="drawer-section" aria-labelledby="drawer-alive-title">
+        <section class="drawer-section" id="drawer-alive-section" aria-labelledby="drawer-alive-title">
             <h3 class="drawer-section-title" id="drawer-alive-title">
                 <i class="bi bi-broadcast-pin"></i> Alive via
             </h3>
@@ -929,6 +948,25 @@
                 <div class="detail-row">
                     <div class="lbl">ARP neighbor</div>
                     <span class="probe-btn na" id="drawer-probe-arp"><span class="dot"></span> N/A</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="drawer-section" id="drawer-inferred-section" hidden aria-labelledby="drawer-inferred-title">
+            <h3 class="drawer-section-title" id="drawer-inferred-title">
+                <i class="bi bi-diagram-3"></i> Switch path
+            </h3>
+            <div class="detail-grid">
+                <div class="detail-row">
+                    <div class="lbl">Port range</div>
+                    <div class="val mono" id="drawer-port-range">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Devices on ports</div>
+                    <div class="probe-meta">
+                        <span class="probe-btn na" id="drawer-probe-inferred"><span class="dot"></span> N/A</span>
+                        <div class="val" id="drawer-members">—</div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -959,6 +997,10 @@
                     <div class="val mono" id="drawer-port">—</div>
                 </div>
                 <div class="detail-row">
+                    <div class="lbl">Switch</div>
+                    <div class="val" id="drawer-switch">—</div>
+                </div>
+                <div class="detail-row">
                     <div class="lbl">Type</div>
                     <div class="val" id="drawer-category">—</div>
                 </div>
@@ -971,7 +1013,7 @@
     </div>
     <div class="drawer-footer">
         <button type="button" class="btn-app btn-app-primary" id="drawer-ping-btn">
-            <i class="bi bi-activity"></i> Ping now
+            <i class="bi bi-activity"></i> <span id="drawer-ping-label">Ping now</span>
         </button>
         <a href="#" class="btn-icon" id="drawer-edit" title="Edit"><i class="bi bi-pencil"></i></a>
         <a href="#" class="btn-icon danger" id="drawer-delete" title="Delete"><i class="bi bi-trash"></i></a>
@@ -989,6 +1031,7 @@
     const searchInput = document.getElementById('device-search');
     const deptFilter = document.getElementById('dept-filter');
     const categoryFilter = document.getElementById('category-filter');
+    const switchFilter = document.getElementById('switch-filter');
     const sortFilter = document.getElementById('sort-filter');
     const emptyFilter = document.getElementById('empty-filter');
     const toast = document.getElementById('toast-copy');
@@ -1048,13 +1091,30 @@
             dot.classList.toggle('down', !d.is_up);
         }
         if (badge) {
-            badge.textContent = d.is_up ? 'Online' : 'Offline';
+            const mapped = devicesMap[d.id] || {};
+            const isSwitch = mapped.is_switch;
+            badge.textContent = isSwitch
+                ? (d.is_up ? 'Live' : 'No path')
+                : (d.is_up ? 'Online' : 'Offline');
             badge.className = `mini-status ${d.is_up ? 'up' : 'down'}`;
         }
         if (ping) {
-            const port = (devicesMap[d.id] && devicesMap[d.id].port) || '';
-            const ms = d.response_ms != null ? `${Math.round(d.response_ms)}ms` : '';
-            ping.textContent = (ms && port) ? `${ms} | ${port}` : (ms || port || '—');
+            const mapped = devicesMap[d.id] || {};
+            if (mapped.is_switch) {
+                const probes = d.probes || mapped.probes || {};
+                const up = probes.members_up;
+                const total = probes.members_total;
+                const range = (mapped.port_from && mapped.port_to)
+                    ? `${mapped.port_from}–${mapped.port_to}`
+                    : '';
+                ping.textContent = (up != null && total != null)
+                    ? `${up}/${total} up`
+                    : (range || '—');
+            } else {
+                const port = mapped.port || '';
+                const ms = d.response_ms != null ? `${Math.round(d.response_ms)}ms` : '';
+                ping.textContent = (ms && port) ? `${ms} | ${port}` : (ms || port || '—');
+            }
         }
 
         if (devicesMap[d.id]) {
@@ -1114,6 +1174,7 @@
         const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
         const dept = deptFilter ? deptFilter.value : '';
         const category = categoryFilter ? categoryFilter.value : '';
+        const switchId = switchFilter ? switchFilter.value : '';
         const cols = document.querySelectorAll('.device-col');
         let visible = 0;
         cols.forEach(col => {
@@ -1122,8 +1183,9 @@
             const deptOk = !dept
                 || (dept === '__none__' ? !colDept : colDept === dept);
             const categoryOk = !category || (col.dataset.category || '') === category;
-            const hay = `${col.dataset.employee} ${col.dataset.ip} ${col.dataset.mac || ''} ${col.dataset.host || ''} ${col.dataset.port || ''} ${colDept} ${col.dataset.category || ''}`;
-            const show = statusOk && deptOk && categoryOk && (!q || hay.includes(q));
+            const switchOk = !switchId || String(col.dataset.switchId || '') === String(switchId);
+            const hay = `${col.dataset.employee} ${col.dataset.ip} ${col.dataset.mac || ''} ${col.dataset.host || ''} ${col.dataset.port || ''} ${colDept} ${col.dataset.category || ''} ${col.dataset.switchName || ''}`;
+            const show = statusOk && deptOk && categoryOk && switchOk && (!q || hay.includes(q));
             col.classList.toggle('hidden-by-filter', !show);
             if (show) visible++;
         });
@@ -1164,44 +1226,71 @@
         const status = document.getElementById('drawer-status');
         header.className = `drawer-header ${d.is_up ? 'up' : 'down'}`;
         status.className = `drawer-status ${d.is_up ? 'up' : 'down'}`;
-        document.getElementById('drawer-status-text').textContent = d.is_up ? 'Online' : 'Offline';
+        document.getElementById('drawer-status-text').textContent = d.is_switch
+            ? (d.is_up ? 'Live (from ports)' : 'No path')
+            : (d.is_up ? 'Online' : 'Offline');
         document.getElementById('drawer-avatar').textContent = (d.employee || '?').charAt(0).toUpperCase();
         document.getElementById('drawer-employee').textContent = d.employee;
         const locEl = document.getElementById('drawer-loc');
-        locEl.innerHTML = d.host
-            ? `<i class="bi bi-pc-display"></i> <span>${escapeHtml(d.host)}</span>`
-            : `<i class="bi bi-hdd-network"></i> <span>Network device</span>`;
-        document.getElementById('drawer-ip').textContent = d.ip;
-        document.getElementById('drawer-copy-ip').dataset.copy = d.ip;
+        locEl.innerHTML = d.is_switch
+            ? `<i class="bi bi-diagram-3"></i> <span>Unmanaged switch</span>`
+            : (d.host
+                ? `<i class="bi bi-pc-display"></i> <span>${escapeHtml(d.host)}</span>`
+                : `<i class="bi bi-hdd-network"></i> <span>Network device</span>`);
+        document.getElementById('drawer-ip').textContent = d.is_switch
+            ? (d.ip || 'No IP (unmanaged)')
+            : (d.ip || '—');
+        document.getElementById('drawer-copy-ip').dataset.copy = d.ip || '';
         const probes = d.probes || {};
         const pingMs = probes.ping_ms != null ? probes.ping_ms : (probes.ping === true ? d.response_ms : null);
         const tcpMs = probes.tcp_ms;
-        document.getElementById('drawer-ping').textContent = pingMs != null ? `${pingMs} ms` : '—';
-        setProbeBtn('drawer-probe-ping', probes.ping);
-        setProbeBtn('drawer-probe-tcp', probes.tcp);
-        setProbeBtn('drawer-probe-arp', probes.arp);
-        const checkPortLbl = document.getElementById('drawer-check-port-lbl');
-        if (d.check_port != null) {
-            checkPortLbl.textContent = d.check_port;
-            document.getElementById('drawer-check-port').textContent = tcpMs != null ? `${tcpMs} ms` : '—';
+        const aliveSection = document.getElementById('drawer-alive-section');
+        const inferredSection = document.getElementById('drawer-inferred-section');
+        if (aliveSection) aliveSection.hidden = !!d.is_switch;
+        if (inferredSection) inferredSection.hidden = !d.is_switch;
+        if (!d.is_switch) {
+            document.getElementById('drawer-ping').textContent = pingMs != null ? `${pingMs} ms` : '—';
+            setProbeBtn('drawer-probe-ping', probes.ping);
+            setProbeBtn('drawer-probe-tcp', probes.tcp);
+            setProbeBtn('drawer-probe-arp', probes.arp);
+            const checkPortLbl = document.getElementById('drawer-check-port-lbl');
+            if (d.check_port != null) {
+                checkPortLbl.textContent = d.check_port;
+                document.getElementById('drawer-check-port').textContent = tcpMs != null ? `${tcpMs} ms` : '—';
+            } else {
+                checkPortLbl.textContent = '';
+                document.getElementById('drawer-check-port').textContent = 'not set';
+            }
+            const bar = document.getElementById('drawer-latency');
+            const ms = probes.ping === true ? pingMs : null;
+            bar.className = `latency-fill ${latencyClass(ms)}`;
+            bar.style.width = `${latencyWidth(ms)}%`;
         } else {
-            checkPortLbl.textContent = '';
-            document.getElementById('drawer-check-port').textContent = 'not set';
+            const range = (d.port_from && d.port_to) ? `${d.port_from} – ${d.port_to}` : '—';
+            document.getElementById('drawer-port-range').textContent = range;
+            const up = probes.members_up;
+            const total = probes.members_total;
+            document.getElementById('drawer-members').textContent =
+                (up != null && total != null) ? `${up} / ${total} online` : 'No devices on these ports';
+            setProbeBtn('drawer-probe-inferred', d.is_up);
         }
         document.getElementById('drawer-checked').textContent = d.last_checked || 'never';
-        document.getElementById('drawer-mac').textContent = d.mac || 'Not detected yet';
+        document.getElementById('drawer-mac').textContent = d.mac || (d.is_switch ? '—' : 'Not detected yet');
         document.getElementById('drawer-host').textContent = d.host || '—';
         document.getElementById('drawer-employee-detail').textContent = d.employee || '—';
-        document.getElementById('drawer-port').textContent = d.port || '—';
+        document.getElementById('drawer-port').textContent = d.is_switch
+            ? ((d.port_from && d.port_to) ? `${d.port_from} – ${d.port_to}` : '—')
+            : (d.port || '—');
+        document.getElementById('drawer-switch').textContent = d.is_switch
+            ? (d.employee || '—')
+            : (d.switch_name || '—');
         document.getElementById('drawer-department').textContent = d.department || '—';
         document.getElementById('drawer-category').textContent = d.category_label || d.category || '—';
-        const bar = document.getElementById('drawer-latency');
-        const ms = probes.ping === true ? pingMs : null;
-        bar.className = `latency-fill ${latencyClass(ms)}`;
-        bar.style.width = `${latencyWidth(ms)}%`;
         document.getElementById('drawer-edit').href = d.edit_url;
         document.getElementById('drawer-delete').href = d.delete_url;
         document.getElementById('drawer-ping-btn').dataset.check = d.id;
+        const pingLabel = document.getElementById('drawer-ping-label');
+        if (pingLabel) pingLabel.textContent = d.is_switch ? 'Check ports' : 'Ping now';
     }
 
     function openDrawer(id) {
@@ -1273,6 +1362,7 @@
             const res = await fetch(checkOneUrl(id));
             const data = await res.json();
             applyStatus(data);
+            (data.related || []).forEach(applyStatus);
             const cols = [...document.querySelectorAll('.device-col')];
             const up = cols.filter(c => c.dataset.status === 'up').length;
             const upEl = document.getElementById('up-count');
@@ -1285,7 +1375,9 @@
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-activity"></i> Ping now';
+                const mapped = devicesMap[id] || {};
+                const label = mapped.is_switch ? 'Check ports' : 'Ping now';
+                btn.innerHTML = `<i class="bi bi-activity"></i> <span id="drawer-ping-label">${label}</span>`;
             }
         }
     }
@@ -1297,6 +1389,7 @@
     searchInput?.addEventListener('input', filterDevices);
     deptFilter?.addEventListener('change', filterDevices);
     categoryFilter?.addEventListener('change', filterDevices);
+    switchFilter?.addEventListener('change', filterDevices);
     sortFilter?.addEventListener('change', () => {
         sortDevices();
         filterDevices();
@@ -1305,6 +1398,7 @@
         if (searchInput) searchInput.value = '';
         if (deptFilter) deptFilter.value = '';
         if (categoryFilter) categoryFilter.value = '';
+        if (switchFilter) switchFilter.value = '';
         if (sortFilter) sortFilter.value = 'ip';
         sortDevices();
         setFilter('all');

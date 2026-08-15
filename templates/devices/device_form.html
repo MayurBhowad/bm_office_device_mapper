@@ -6,11 +6,11 @@
         <div class="form-panel">
             <p class="text-muted small mb-1" style="font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">Device</p>
             <h1 class="form-title">{{ title }}</h1>
-            <p class="text-muted mb-4" style="font-size:0.9rem;">IP must be unique. Employee is required; Host, MAC, and TCP check port can be left empty. Type is PC / Printer / Centralized / Access Point. If ping is blocked, set TCP check port (e.g. 445 / 22 / 3389).</p>
-            <form method="post" novalidate>
+            <p class="text-muted mb-4" style="font-size:0.9rem;">Name is required (employee, or Switch-1 / Switch-2). For PCs use port D-1, D-2, …. For a switch, leave IP empty and set the port range (e.g. D-1 to D-20). Switch live status is inferred from devices on those ports.</p>
+            <form method="post" novalidate id="device-form">
                 {% csrf_token %}
                 {% for field in form %}
-                    <div class="mb-3">
+                    <div class="mb-3" data-field="{{ field.name }}">
                         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                         {{ field }}
                         {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
@@ -27,4 +27,41 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const category = document.getElementById('id_category');
+    const ip = document.getElementById('id_ip_address');
+    const form = document.getElementById('device-form');
+    if (!category || !form) return;
+
+    const switchOnly = new Set(['port_from', 'port_to']);
+    const hideForSwitch = new Set(['port', 'check_port']);
+
+    function row(name) {
+        return form.querySelector(`[data-field="${name}"]`);
+    }
+
+    function toggleSwitchFields() {
+        const isSwitch = category.value === 'switch';
+        if (ip) {
+            ip.required = !isSwitch;
+            ip.placeholder = isSwitch ? 'Leave empty (unmanaged)' : '192.168.1.25';
+        }
+        switchOnly.forEach((name) => {
+            const el = row(name);
+            if (el) el.style.display = isSwitch ? '' : 'none';
+        });
+        hideForSwitch.forEach((name) => {
+            const el = row(name);
+            if (el) el.style.display = isSwitch ? 'none' : '';
+        });
+    }
+
+    category.addEventListener('change', toggleSwitchFields);
+    toggleSwitchFields();
+})();
+</script>
 {% endblock %}
