@@ -181,6 +181,13 @@
 
     .sort-filter { flex: 0 1 150px; min-width: 130px; }
 
+    .toolbar .export-btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 0.55rem 0.9rem;
+        font-size: 0.825rem;
+    }
+
     .dept-filter i,
     .category-filter i,
     .switch-filter i,
@@ -746,7 +753,8 @@
         .dept-filter,
         .category-filter,
         .switch-filter,
-        .sort-filter { flex: 1 1 100%; }
+        .sort-filter,
+        .toolbar .export-btn { flex: 1 1 100%; }
         #device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     }
 </style>
@@ -835,6 +843,10 @@
         <button type="button" class="filter-btn" data-filter="up">Online</button>
         <button type="button" class="filter-btn" data-filter="down">Offline</button>
     </div>
+    {% csrf_token %}
+    <button type="button" class="btn-app btn-app-ghost export-btn" id="export-btn">
+        <i class="bi bi-file-earmark-excel"></i> Export
+    </button>
 </div>
 {% endif %}
 
@@ -1386,10 +1398,62 @@
     document.querySelectorAll('[data-filter]').forEach(el => {
         el.addEventListener('click', () => setFilter(el.dataset.filter));
     });
+    function visibleDeviceIds() {
+        return [...document.querySelectorAll('.device-col:not(.hidden-by-filter)')]
+            .map(col => Number(String(col.id).replace('device-col-', '')))
+            .filter(id => Number.isInteger(id) && id > 0);
+    }
+
+    async function exportDevices() {
+        const ids = visibleDeviceIds();
+        if (!ids.length) {
+            showToast('No devices to export');
+            return;
+        }
+        const btn = document.getElementById('export-btn');
+        if (btn) btn.disabled = true;
+        try {
+            const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+            const res = await fetch("{% url 'device_export' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf,
+                },
+                body: JSON.stringify({ ids }),
+            });
+            if (!res.ok) {
+                let msg = 'Export failed';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch (_) {}
+                showToast(msg);
+                return;
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `devices-${new Date().toISOString().slice(0, 10)}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showToast(`Exported ${ids.length} device${ids.length === 1 ? '' : 's'}`);
+        } catch (e) {
+            console.error(e);
+            showToast('Export failed');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     searchInput?.addEventListener('input', filterDevices);
     deptFilter?.addEventListener('change', filterDevices);
     categoryFilter?.addEventListener('change', filterDevices);
     switchFilter?.addEventListener('change', filterDevices);
+    document.getElementById('export-btn')?.addEventListener('click', exportDevices);
     sortFilter?.addEventListener('change', () => {
         sortDevices();
         filterDevices();

@@ -1,11 +1,14 @@
 from concurrent.futures import ThreadPoolExecutor
 import ipaddress
+import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .forms import DeviceForm
 from .models import Department, Device
@@ -17,6 +20,7 @@ from .utils import (
     infer_switch_status,
     parse_desk_port,
 )
+from .xlsx_export import build_xlsx
 
 
 def _ip_sort_key(device):
@@ -195,3 +199,101 @@ def check_all(request):
     if devices:
         check_devices(devices)
     return JsonResponse({"devices": [_serialize(d) for d in devices]})
+
+
+_EXPORT_MAX_IDS = 5000
+_EXPORT_HEADERS = [
+    "Name",
+    "Type",
+    "IP",
+    "MAC",
+    "Host",
+    "Port",
+    "Switch",
+    "Department",
+    "Status",
+    "Response (ms)",
+    "Last checked",
+]
+
+
+def _export_row(device, switches):
+    if device.is_switch:
+        port = device.port_range_label or ""
+        switch_name = device.employee
+        status = "Live" if device.is_up else "No path"
+        response = ""
+    else:
+        port = device.port or ""
+        parent = find_switch_for_port(device.port, switches)
+        switch_name = parent.employee if parent else ""
+        status = "Online" if device.is_up else "Offline"
+        response = (
+            str(int(round(device.last_response_ms)))
+            if device.last_response_ms is not None
+            else ""
+        )
+    last_checked = ""
+    if device.last_checked:
+        last_checked = timezone.localtime(device.last_checked).strftime("%Y-%m-%d %H:%M:%S")
+    return [
+        device.employee,
+        device.get_category_display(),
+        device.ip_address or "",
+        device.mac_address or "",
+        device.host or "",
+        port,
+        switch_name,
+        device.department.name if device.department else "",
+        status,
+        response,
+        last_checked,
+    ]
+
+
+@login_required
+@require_POST
+def export_devices(request):
+    """Excel download of the devices currently visible after search/filters."""
+    try:
+        payload = json.loads(request.body.decode() or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid request."}, status=400)
+
+    raw_ids = payload.get("ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return JsonResponse({"error": "No devices to export."}, status=400)
+    if len(raw_ids) > _EXPORT_MAX_IDS:
+        return JsonResponse({"error": "Too many devices to export."}, status=400)
+
+    ids = []
+    seen = set()
+    for value in raw_ids:
+        try:
+            pk = int(value)
+        except (TypeError, ValueError):
+            continue
+        if pk > 0 and pk not in seen:
+            seen.add(pk)
+            ids.append(pk)
+    if not ids:
+        return JsonResponse({"error": "No devices to export."}, status=400)
+
+    devices_by_id = {
+        d.id: d
+        for d in Device.objects.select_related("department").filter(id__in=ids)
+    }
+    ordered = [devices_by_id[pk] for pk in ids if pk in devices_by_id]
+    if not ordered:
+        return JsonResponse({"error": "No devices to export."}, status=400)
+
+    switches = list(Device.objects.filter(category=Device.CATEGORY_SWITCH))
+    rows = [_export_row(device, switches) for device in ordered]
+    content = build_xlsx(_EXPORT_HEADERS, rows)
+    stamp = timezone.localdate().isoformat()
+    response = HttpResponse(
+        content,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="devices-{stamp}.xlsx"'
+    return response
