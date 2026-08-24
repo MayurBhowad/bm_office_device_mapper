@@ -38,10 +38,20 @@
     if (!category || !form) return;
 
     const switchOnly = new Set(['port_from', 'port_to']);
-    const hideForSwitch = new Set(['port', 'check_port']);
+    const hideForSwitch = new Set(['port', 'check_port', 'login_method', 'login_username']);
+    const loginMethod = document.getElementById('id_login_method');
 
     function row(name) {
         return form.querySelector(`[data-field="${name}"]`);
+    }
+
+    function toggleUsernameField() {
+        const method = loginMethod ? loginMethod.value : 'none';
+        const userRow = row('login_username');
+        if (!userRow) return;
+        const needsUser = method === 'ssh' || method === 'rdp' || method === 'telnet';
+        const optionalUser = method === 'http' || method === 'https';
+        userRow.style.display = (needsUser || optionalUser) ? '' : 'none';
     }
 
     function toggleSwitchFields() {
@@ -58,9 +68,13 @@
             const el = row(name);
             if (el) el.style.display = isSwitch ? 'none' : '';
         });
+        if (!isSwitch) toggleUsernameField();
     }
 
     category.addEventListener('change', toggleSwitchFields);
+    loginMethod?.addEventListener('change', () => {
+        if (category.value !== 'switch') toggleUsernameField();
+    });
     toggleSwitchFields();
 })();
 </script>

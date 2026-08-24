@@ -87,6 +87,34 @@ class Device(models.Model):
         help_text="Device type: PC, Printer, Centralized, Access Point, Switch",
     )
 
+    LOGIN_NONE = "none"
+    LOGIN_SSH = "ssh"
+    LOGIN_RDP = "rdp"
+    LOGIN_HTTP = "http"
+    LOGIN_HTTPS = "https"
+    LOGIN_TELNET = "telnet"
+    LOGIN_METHOD_CHOICES = [
+        (LOGIN_NONE, "None"),
+        (LOGIN_SSH, "SSH"),
+        (LOGIN_RDP, "RDP"),
+        (LOGIN_HTTP, "HTTP"),
+        (LOGIN_HTTPS, "HTTPS"),
+        (LOGIN_TELNET, "Telnet"),
+    ]
+
+    login_method = models.CharField(
+        max_length=10,
+        choices=LOGIN_METHOD_CHOICES,
+        default=LOGIN_SSH,
+        db_index=True,
+        help_text="How you connect to this device (e.g. SSH for PCs)",
+    )
+    login_username = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Username for SSH/RDP/Telnet (optional for HTTP/HTTPS)",
+    )
+
     is_up = models.BooleanField(default=False)
     last_checked = models.DateTimeField(null=True, blank=True)
     last_response_ms = models.FloatField(null=True, blank=True)
@@ -112,6 +140,26 @@ class Device(models.Model):
     def port_range_label(self):
         if self.port_from and self.port_to:
             return f"{self.port_from}–{self.port_to}"
+        return ""
+
+    @property
+    def login_command(self):
+        """CLI/URL string for the configured login method, or empty if unavailable."""
+        if self.is_switch or not self.ip_address:
+            return ""
+        method = self.login_method
+        user = (self.login_username or "").strip()
+        host = self.ip_address
+        if method == self.LOGIN_SSH:
+            return f"ssh {user}@{host}" if user else f"ssh {host}"
+        if method == self.LOGIN_RDP:
+            return f"mstsc /v:{host}" if not user else f"mstsc /v:{host} /u:{user}"
+        if method == self.LOGIN_HTTP:
+            return f"http://{host}"
+        if method == self.LOGIN_HTTPS:
+            return f"https://{host}"
+        if method == self.LOGIN_TELNET:
+            return f"telnet {host}"
         return ""
 
     def mark_status(self, is_up: bool, response_ms=None, mac_address=None):

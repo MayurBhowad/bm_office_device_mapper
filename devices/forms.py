@@ -16,6 +16,8 @@ class DeviceForm(forms.ModelForm):
             "port_to",
             "mac_address",
             "check_port",
+            "login_method",
+            "login_username",
             "department",
         ]
         labels = {
@@ -27,6 +29,8 @@ class DeviceForm(forms.ModelForm):
             "port_from": "Ports from",
             "port_to": "Ports to",
             "check_port": "TCP check port",
+            "login_method": "Login method",
+            "login_username": "Login username",
             "department": "Department",
             "category": "Type",
         }
@@ -45,6 +49,10 @@ class DeviceForm(forms.ModelForm):
                     "min": 1,
                     "max": 65535,
                 }
+            ),
+            "login_method": forms.Select(attrs={"class": "form-control"}),
+            "login_username": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. admin, root, mayur"}
             ),
             "department": forms.Select(attrs={"class": "form-control"}),
             "category": forms.Select(attrs={"class": "form-control"}),
@@ -72,6 +80,8 @@ class DeviceForm(forms.ModelForm):
             data["port_to"] = port_to
             data["port"] = ""
             data["check_port"] = None
+            data["login_method"] = Device.LOGIN_NONE
+            data["login_username"] = ""
 
             if not port_from:
                 self.add_error("port_from", "Set the first port (e.g. D-1).")
@@ -110,5 +120,11 @@ class DeviceForm(forms.ModelForm):
                 data["port"] = normalized
             if not data.get("ip_address"):
                 self.add_error("ip_address", "IP is required for this device type.")
+
+            method = data.get("login_method") or Device.LOGIN_NONE
+            username = (data.get("login_username") or "").strip()
+            data["login_username"] = username
+            if method == Device.LOGIN_NONE:
+                data["login_username"] = ""
 
         return data

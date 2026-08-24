@@ -571,6 +571,59 @@
 
     .ip-block:hover .ip-block-copy { color: #5eead4; background: rgba(13, 148, 136, 0.25); }
 
+    .login-block {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+        padding: 0.85rem 1rem;
+        border-radius: 14px;
+        background: var(--teal-soft);
+        color: var(--ink);
+        border: 1px solid rgba(13, 148, 136, 0.28);
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+        font-family: inherit;
+        margin-bottom: 1rem;
+        transition: background 0.15s, border-color 0.15s;
+    }
+
+    .login-block:hover {
+        background: rgba(13, 148, 136, 0.18);
+        border-color: var(--teal);
+    }
+
+    .login-block[hidden] { display: none !important; }
+
+    .login-block-label {
+        display: block;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--teal-deep);
+        margin-bottom: 0.2rem;
+    }
+
+    .login-block-value {
+        font-family: var(--font-mono);
+        font-size: 0.95rem;
+        font-weight: 500;
+        word-break: break-all;
+    }
+
+    .login-block-copy {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: rgba(13, 148, 136, 0.15);
+        color: var(--teal-deep);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+    }
+
     .drawer-section {
         margin-bottom: 1.25rem;
     }
@@ -935,6 +988,14 @@
             <span class="ip-block-copy"><i class="bi bi-clipboard"></i></span>
         </button>
 
+        <button type="button" class="login-block" id="drawer-copy-login" title="Copy login command" hidden>
+            <span>
+                <span class="login-block-label" id="drawer-login-label">SSH</span>
+                <span class="login-block-value" id="drawer-login-cmd">—</span>
+            </span>
+            <span class="login-block-copy"><i class="bi bi-terminal"></i></span>
+        </button>
+
         <section class="drawer-section" id="drawer-alive-section" aria-labelledby="drawer-alive-title">
             <h3 class="drawer-section-title" id="drawer-alive-title">
                 <i class="bi bi-broadcast-pin"></i> Alive via
@@ -1015,6 +1076,14 @@
                 <div class="detail-row">
                     <div class="lbl">Type</div>
                     <div class="val" id="drawer-category">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Login</div>
+                    <div class="val" id="drawer-login-method">—</div>
+                </div>
+                <div class="detail-row">
+                    <div class="lbl">Username</div>
+                    <div class="val mono" id="drawer-login-user">—</div>
                 </div>
                 <div class="detail-row">
                     <div class="lbl">Department</div>
@@ -1298,6 +1367,29 @@
             : (d.switch_name || '—');
         document.getElementById('drawer-department').textContent = d.department || '—';
         document.getElementById('drawer-category').textContent = d.category_label || d.category || '—';
+        const loginMethodEl = document.getElementById('drawer-login-method');
+        const loginUserEl = document.getElementById('drawer-login-user');
+        const loginBtn = document.getElementById('drawer-copy-login');
+        if (d.is_switch || !d.login_method || d.login_method === 'none') {
+            if (loginMethodEl) loginMethodEl.textContent = '—';
+            if (loginUserEl) loginUserEl.textContent = '—';
+            if (loginBtn) {
+                loginBtn.hidden = true;
+                loginBtn.dataset.copy = '';
+            }
+        } else {
+            if (loginMethodEl) loginMethodEl.textContent = d.login_method_label || d.login_method;
+            if (loginUserEl) loginUserEl.textContent = d.login_username || '—';
+            if (loginBtn) {
+                const cmd = d.login_command || '';
+                loginBtn.hidden = !cmd;
+                loginBtn.dataset.copy = cmd;
+                const label = document.getElementById('drawer-login-label');
+                const value = document.getElementById('drawer-login-cmd');
+                if (label) label.textContent = d.login_method_label || d.login_method || 'Login';
+                if (value) value.textContent = cmd || '—';
+            }
+        }
         document.getElementById('drawer-edit').href = d.edit_url;
         document.getElementById('drawer-delete').href = d.delete_url;
         document.getElementById('drawer-ping-btn').dataset.check = d.id;
@@ -1484,6 +1576,15 @@
         try {
             await navigator.clipboard.writeText(ip);
             showToast('IP copied');
+        } catch (_) {}
+    });
+
+    document.getElementById('drawer-copy-login')?.addEventListener('click', async () => {
+        const cmd = document.getElementById('drawer-copy-login').dataset.copy;
+        if (!cmd) return;
+        try {
+            await navigator.clipboard.writeText(cmd);
+            showToast('Login command copied');
         } catch (_) {}
     });
 
