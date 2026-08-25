@@ -18,7 +18,6 @@ from .utils import (
     devices_on_switch,
     find_switch_for_port,
     infer_switch_status,
-    launch_ssh_terminal,
     parse_desk_port,
 )
 from .xlsx_export import build_xlsx
@@ -209,7 +208,7 @@ def check_all(request):
 @login_required
 @require_POST
 def device_connect(request, pk):
-    """Open a connection to the device (SSH terminal locally, or browser URL)."""
+    """Return how the UI should open a connection (in-app SSH or external URL)."""
     device = get_object_or_404(Device, pk=pk)
     if device.is_switch or not device.ip_address:
         return JsonResponse({"ok": False, "error": "This device cannot be connected to."}, status=400)
@@ -219,15 +218,14 @@ def device_connect(request, pk):
         return JsonResponse({"ok": False, "error": "No login method configured."}, status=400)
 
     if method == Device.LOGIN_SSH:
-        ok, message = launch_ssh_terminal(device.ip_address, device.login_username or "")
-        if ok:
-            return JsonResponse({"ok": True, "message": message, "mode": "terminal"})
         return JsonResponse({
-            "ok": False,
-            "error": message,
-            "command": device.login_command,
-            "mode": "terminal",
-        }, status=500)
+            "ok": True,
+            "mode": "webssh",
+            "id": device.id,
+            "host": device.ip_address,
+            "user": device.login_username or "",
+            "label": device.employee,
+        })
 
     if method in (Device.LOGIN_HTTP, Device.LOGIN_HTTPS):
         url = device.login_command

@@ -32,12 +32,14 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'devices',
 ]
 
@@ -73,6 +75,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'lanmonitor.wsgi.application'
+ASGI_APPLICATION = 'lanmonitor.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 
 # Database

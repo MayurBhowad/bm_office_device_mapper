@@ -562,6 +562,109 @@
         cursor: wait;
     }
 
+    .term-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(4px);
+    }
+
+    .term-overlay[hidden] { display: none !important; }
+
+    .term-panel {
+        display: flex;
+        flex-direction: column;
+        width: min(1100px, 100%);
+        height: min(720px, 100%);
+        margin: auto;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #0b1220;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
+    }
+
+    .term-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.75rem 0.9rem;
+        background: #111827;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        flex-wrap: wrap;
+    }
+
+    .term-title {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        min-width: 0;
+    }
+
+    .term-title strong {
+        color: #e2e8f0;
+        font-size: 0.95rem;
+        font-weight: 650;
+    }
+
+    .term-title span {
+        color: #94a3b8;
+        font-family: var(--font-mono, "IBM Plex Mono", monospace);
+        font-size: 0.75rem;
+    }
+
+    .term-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .term-pass {
+        width: min(220px, 42vw);
+        padding: 0.4rem 0.65rem;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: inherit;
+        font-size: 0.8rem;
+    }
+
+    .term-pass:focus {
+        outline: 2px solid rgba(13, 148, 136, 0.45);
+        outline-offset: 1px;
+    }
+
+    .term-body {
+        flex: 1;
+        min-height: 0;
+        padding: 0.5rem;
+        background: #020617;
+    }
+
+    .term-body .xterm {
+        height: 100%;
+    }
+
+    .term-body .xterm-viewport {
+        overflow-y: auto !important;
+    }
+
+    .term-status {
+        padding: 0.35rem 0.9rem 0.55rem;
+        color: #94a3b8;
+        font-size: 0.72rem;
+        border-top: 1px solid rgba(148, 163, 184, 0.12);
+        background: #0b1220;
+    }
+
     .ip-block {
         display: flex;
         align-items: center;
@@ -1149,9 +1252,35 @@
 </aside>
 
 <div class="toast-copy" id="toast-copy" role="status">IP copied</div>
+
+<div class="term-overlay" id="term-overlay" hidden>
+    <div class="term-panel" role="dialog" aria-modal="true" aria-labelledby="term-label">
+        <div class="term-header">
+            <div class="term-title">
+                <strong id="term-label">SSH</strong>
+                <span id="term-target">—</span>
+            </div>
+            <div class="term-actions">
+                <input type="password" class="term-pass" id="term-password"
+                       placeholder="SSH password (if needed)" autocomplete="off" spellcheck="false">
+                <button type="button" class="btn-app btn-app-primary" id="term-reconnect" style="padding:0.4rem 0.75rem;font-size:0.78rem;">
+                    <i class="bi bi-plug"></i> Connect
+                </button>
+                <button type="button" class="btn-icon" id="term-close" title="Close terminal" aria-label="Close terminal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="term-body" id="term-container"></div>
+        <div class="term-status" id="term-status">Ready</div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 <script>
 (function () {
     let activeFilter = 'all';
@@ -1626,7 +1755,12 @@
     document.getElementById('drawer-close')?.addEventListener('click', closeDrawer);
     backdrop?.addEventListener('click', closeDrawer);
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && drawer?.classList.contains('open')) closeDrawer();
+        if (e.key !== 'Escape') return;
+        if (termOverlay && !termOverlay.hidden) {
+            closeTerminal();
+            return;
+        }
+        if (drawer?.classList.contains('open')) closeDrawer();
     });
 
     document.getElementById('drawer-copy-ip')?.addEventListener('click', async () => {
@@ -1647,10 +1781,193 @@
         } catch (_) {}
     });
 
+    /* ---- In-app SSH terminal (xterm.js + WebSocket) ---- */
+    const termOverlay = document.getElementById('term-overlay');
+    const termContainer = document.getElementById('term-container');
+    const termStatus = document.getElementById('term-status');
+    const termPassword = document.getElementById('term-password');
+    let term = null;
+    let fitAddon = null;
+    let sshSocket = null;
+    let sshDeviceId = null;
+    let sshStarted = false;
+
+    function setTermStatus(text) {
+        if (termStatus) termStatus.textContent = text || '';
+    }
+
+    function sshWsUrl(id) {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${proto}//${location.host}/ws/ssh/${id}/`;
+    }
+
+    function ensureTerminal() {
+        if (term || !termContainer || typeof Terminal === 'undefined') return;
+        term = new Terminal({
+            cursorBlink: true,
+            fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+            fontSize: 13,
+            theme: {
+                background: '#020617',
+                foreground: '#e2e8f0',
+                cursor: '#5eead4',
+                selectionBackground: 'rgba(13, 148, 136, 0.35)',
+            },
+        });
+        fitAddon = typeof FitAddon !== 'undefined' ? new FitAddon.FitAddon() : null;
+        if (fitAddon) term.loadAddon(fitAddon);
+        term.open(termContainer);
+        term.onData((data) => {
+            if (sshSocket && sshSocket.readyState === WebSocket.OPEN && sshStarted) {
+                sshSocket.send(JSON.stringify({ type: 'input', data }));
+            }
+        });
+    }
+
+    function fitTerminal() {
+        if (!term || !fitAddon) return;
+        try {
+            fitAddon.fit();
+            if (sshSocket && sshSocket.readyState === WebSocket.OPEN) {
+                sshSocket.send(JSON.stringify({
+                    type: 'resize',
+                    cols: term.cols,
+                    rows: term.rows,
+                }));
+            }
+        } catch (_) {}
+    }
+
+    function closeSshSocket() {
+        sshStarted = false;
+        if (sshSocket) {
+            try { sshSocket.close(); } catch (_) {}
+            sshSocket = null;
+        }
+    }
+
+    function startSshSession() {
+        if (!sshDeviceId) return;
+        ensureTerminal();
+        if (!term) {
+            setTermStatus('Terminal library failed to load.');
+            return;
+        }
+        closeSshSocket();
+        term.reset();
+        setTermStatus('Opening WebSocket…');
+        const ws = new WebSocket(sshWsUrl(sshDeviceId));
+        ws.binaryType = 'arraybuffer';
+        sshSocket = ws;
+
+        ws.onopen = () => {
+            setTermStatus('WebSocket connected — starting SSH…');
+            fitTerminal();
+            const password = termPassword ? termPassword.value : '';
+            ws.send(JSON.stringify({
+                type: 'start',
+                password: password || '',
+                cols: term.cols,
+                rows: term.rows,
+            }));
+        };
+
+        ws.onmessage = (ev) => {
+            if (typeof ev.data !== 'string') {
+                term.write(new Uint8Array(ev.data));
+                return;
+            }
+            let msg;
+            try { msg = JSON.parse(ev.data); } catch (_) { return; }
+            if (msg.type === 'ready') {
+                setTermStatus(`Ready for ${msg.user ? msg.user + '@' : ''}${msg.host}`);
+            } else if (msg.type === 'status' || msg.type === 'connected') {
+                setTermStatus(msg.message || msg.type);
+                if (msg.type === 'connected') {
+                    sshStarted = true;
+                    term.focus();
+                }
+            } else if (msg.type === 'auth_required') {
+                sshStarted = false;
+                setTermStatus(msg.message || 'Password required');
+                term.writeln('\r\n\x1b[33m' + (msg.message || 'Authentication failed') + '\x1b[0m\r\n');
+                if (termPassword) termPassword.focus();
+            } else if (msg.type === 'error') {
+                sshStarted = false;
+                setTermStatus(msg.message || 'Error');
+                term.writeln('\r\n\x1b[31m' + (msg.message || 'Error') + '\x1b[0m\r\n');
+            } else if (msg.type === 'closed') {
+                sshStarted = false;
+                setTermStatus(msg.message || 'Session ended');
+            }
+        };
+
+        ws.onerror = () => setTermStatus('WebSocket error');
+        ws.onclose = () => {
+            sshStarted = false;
+            if (sshSocket === ws) sshSocket = null;
+            setTermStatus('Disconnected');
+        };
+    }
+
+    function openTerminal(meta) {
+        sshDeviceId = meta.id;
+        ensureTerminal();
+        const label = document.getElementById('term-label');
+        const target = document.getElementById('term-target');
+        if (label) label.textContent = meta.label || 'SSH';
+        if (target) {
+            target.textContent = meta.user
+                ? `${meta.user}@${meta.host}`
+                : (meta.host || '—');
+        }
+        if (termPassword) termPassword.value = '';
+        termOverlay.hidden = false;
+        document.body.classList.add('drawer-open');
+        requestAnimationFrame(() => {
+            fitTerminal();
+            startSshSession();
+        });
+    }
+
+    function closeTerminal() {
+        closeSshSocket();
+        if (termOverlay) termOverlay.hidden = true;
+        setTermStatus('Ready');
+        if (!drawer?.classList.contains('open')) {
+            document.body.classList.remove('drawer-open');
+        }
+    }
+
+    document.getElementById('term-close')?.addEventListener('click', closeTerminal);
+    document.getElementById('term-reconnect')?.addEventListener('click', startSshSession);
+    termPassword?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            startSshSession();
+        }
+    });
+    termOverlay?.addEventListener('click', (e) => {
+        if (e.target === termOverlay) closeTerminal();
+    });
+    window.addEventListener('resize', () => {
+        if (termOverlay && !termOverlay.hidden) fitTerminal();
+    });
+
     document.getElementById('drawer-connect')?.addEventListener('click', async () => {
         const btn = document.getElementById('drawer-connect');
         const id = btn?.dataset.id;
         if (!id || btn.disabled) return;
+        const d = devicesMap[Number(id)];
+        if (d && d.login_method === 'ssh') {
+            openTerminal({
+                id: d.id,
+                host: d.ip,
+                user: d.login_username || '',
+                label: d.employee || 'SSH',
+            });
+            return;
+        }
         const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
         btn.disabled = true;
         try {
@@ -1663,25 +1980,16 @@
                 body: '{}',
             });
             const data = await res.json().catch(() => ({}));
-            if (data.mode === 'url' && data.url) {
+            if (data.mode === 'webssh') {
+                openTerminal(data);
+            } else if (data.mode === 'url' && data.url) {
                 window.open(data.url, '_blank', 'noopener,noreferrer');
                 showToast('Opening connection…');
-            } else if (data.ok) {
-                showToast(data.message || 'Terminal opened');
             } else {
-                if (data.command) {
-                    try {
-                        await navigator.clipboard.writeText(data.command);
-                        showToast(data.error || 'Copied SSH command');
-                    } catch (_) {
-                        showToast(data.error || 'Could not open terminal');
-                    }
-                } else {
-                    showToast(data.error || 'Could not open terminal');
-                }
+                showToast(data.error || 'Could not connect');
             }
         } catch (_) {
-            showToast('Could not open terminal');
+            showToast('Could not connect');
         } finally {
             btn.disabled = false;
         }
