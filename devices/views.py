@@ -18,6 +18,7 @@ from .utils import (
     devices_on_switch,
     find_switch_for_port,
     infer_switch_status,
+    launch_ssh_terminal,
     parse_desk_port,
 )
 from .xlsx_export import build_xlsx
@@ -203,6 +204,46 @@ def check_all(request):
     if devices:
         check_devices(devices)
     return JsonResponse({"devices": [_serialize(d) for d in devices]})
+
+
+@login_required
+@require_POST
+def device_connect(request, pk):
+    """Open a connection to the device (SSH terminal locally, or browser URL)."""
+    device = get_object_or_404(Device, pk=pk)
+    if device.is_switch or not device.ip_address:
+        return JsonResponse({"ok": False, "error": "This device cannot be connected to."}, status=400)
+
+    method = device.login_method
+    if method == Device.LOGIN_NONE:
+        return JsonResponse({"ok": False, "error": "No login method configured."}, status=400)
+
+    if method == Device.LOGIN_SSH:
+        ok, message = launch_ssh_terminal(device.ip_address, device.login_username or "")
+        if ok:
+            return JsonResponse({"ok": True, "message": message, "mode": "terminal"})
+        return JsonResponse({
+            "ok": False,
+            "error": message,
+            "command": device.login_command,
+            "mode": "terminal",
+        }, status=500)
+
+    if method in (Device.LOGIN_HTTP, Device.LOGIN_HTTPS):
+        url = device.login_command
+        if not url:
+            return JsonResponse({"ok": False, "error": "No URL available."}, status=400)
+        return JsonResponse({"ok": True, "mode": "url", "url": url})
+
+    if method == Device.LOGIN_TELNET:
+        url = f"telnet://{device.ip_address}"
+        return JsonResponse({"ok": True, "mode": "url", "url": url, "command": device.login_command})
+
+    if method == Device.LOGIN_RDP:
+        url = f"rdp://{device.ip_address}"
+        return JsonResponse({"ok": True, "mode": "url", "url": url, "command": device.login_command})
+
+    return JsonResponse({"ok": False, "error": "Unsupported login method."}, status=400)
 
 
 _EXPORT_MAX_IDS = 5000

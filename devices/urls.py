@@ -8,5 +8,6 @@ urlpatterns = [
     path("device/<int:pk>/delete/", views.device_delete, name="device_delete"),
     path("api/check/<int:pk>/", views.check_one, name="check_one"),
     path("api/check-all/", views.check_all, name="check_all"),
+    path("api/connect/<int:pk>/", views.device_connect, name="device_connect"),
     path("export/", views.export_devices, name="device_export"),
 ]

@@ -495,6 +495,15 @@
         padding: 1.15rem 1.25rem 1.5rem;
     }
 
+    .drawer-status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+        margin-bottom: 1.1rem;
+        flex-wrap: wrap;
+    }
+
     .drawer-status {
         display: inline-flex;
         align-items: center;
@@ -505,7 +514,7 @@
         text-transform: uppercase;
         padding: 0.4rem 0.7rem;
         border-radius: 8px;
-        margin-bottom: 1.1rem;
+        margin-bottom: 0;
     }
 
     .drawer-status.up { background: var(--teal-soft); color: var(--teal-deep); }
@@ -519,6 +528,39 @@
 
     .drawer-status.up .dot { background: var(--teal); animation: pulse-dot 2s ease-in-out infinite; }
     .drawer-status.down .dot { background: var(--coral); }
+
+    .btn-connect {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-left: auto;
+        padding: 0.38rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid rgba(13, 148, 136, 0.45);
+        background: var(--teal-soft);
+        color: var(--teal-deep);
+        font-family: inherit;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, transform 0.12s;
+    }
+
+    .btn-connect:hover {
+        background: rgba(13, 148, 136, 0.22);
+        border-color: var(--teal);
+    }
+
+    .btn-connect:active { transform: scale(0.97); }
+
+    .btn-connect[hidden] { display: none !important; }
+
+    .btn-connect:disabled {
+        opacity: 0.55;
+        cursor: wait;
+    }
 
     .ip-block {
         display: flex;
@@ -975,9 +1017,14 @@
         </button>
     </div>
     <div class="drawer-body">
-        <div class="drawer-status down" id="drawer-status">
-            <span class="dot"></span>
-            <span id="drawer-status-text">Offline</span>
+        <div class="drawer-status-row">
+            <div class="drawer-status down" id="drawer-status">
+                <span class="dot"></span>
+                <span id="drawer-status-text">Offline</span>
+            </div>
+            <button type="button" class="btn-connect" id="drawer-connect" hidden title="Open SSH terminal">
+                <i class="bi bi-terminal"></i> Connect
+            </button>
         </div>
 
         <button type="button" class="ip-block" id="drawer-copy-ip" title="Copy IP">
@@ -1120,6 +1167,7 @@
     const backdrop = document.getElementById('drawer-backdrop');
     const deviceGrid = document.getElementById('device-grid');
     const checkOneUrl = (id) => `{% url 'check_one' 0 %}`.replace('/0/', `/${id}/`);
+    const connectUrl = (id) => `{% url 'device_connect' 0 %}`.replace('/0/', `/${id}/`);
 
     const devicesMap = {};
     const jsonEl = document.getElementById('devices-json');
@@ -1370,6 +1418,17 @@
         const loginMethodEl = document.getElementById('drawer-login-method');
         const loginUserEl = document.getElementById('drawer-login-user');
         const loginBtn = document.getElementById('drawer-copy-login');
+        const connectBtn = document.getElementById('drawer-connect');
+        const canConnect = !d.is_switch && d.ip && d.login_method && d.login_method !== 'none';
+        if (connectBtn) {
+            connectBtn.hidden = !canConnect;
+            connectBtn.dataset.id = canConnect ? String(d.id) : '';
+            connectBtn.disabled = false;
+            const method = d.login_method || 'ssh';
+            connectBtn.title = method === 'ssh'
+                ? 'Open SSH terminal'
+                : `Connect via ${d.login_method_label || method}`;
+        }
         if (d.is_switch || !d.login_method || d.login_method === 'none') {
             if (loginMethodEl) loginMethodEl.textContent = '—';
             if (loginUserEl) loginUserEl.textContent = '—';
@@ -1586,6 +1645,46 @@
             await navigator.clipboard.writeText(cmd);
             showToast('Login command copied');
         } catch (_) {}
+    });
+
+    document.getElementById('drawer-connect')?.addEventListener('click', async () => {
+        const btn = document.getElementById('drawer-connect');
+        const id = btn?.dataset.id;
+        if (!id || btn.disabled) return;
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        btn.disabled = true;
+        try {
+            const res = await fetch(connectUrl(id), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrf,
+                    'Content-Type': 'application/json',
+                },
+                body: '{}',
+            });
+            const data = await res.json().catch(() => ({}));
+            if (data.mode === 'url' && data.url) {
+                window.open(data.url, '_blank', 'noopener,noreferrer');
+                showToast('Opening connection…');
+            } else if (data.ok) {
+                showToast(data.message || 'Terminal opened');
+            } else {
+                if (data.command) {
+                    try {
+                        await navigator.clipboard.writeText(data.command);
+                        showToast(data.error || 'Copied SSH command');
+                    } catch (_) {
+                        showToast(data.error || 'Could not open terminal');
+                    }
+                } else {
+                    showToast(data.error || 'Could not open terminal');
+                }
+            }
+        } catch (_) {
+            showToast('Could not open terminal');
+        } finally {
+            btn.disabled = false;
+        }
     });
 
     document.getElementById('drawer-ping-btn')?.addEventListener('click', () => {

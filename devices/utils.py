@@ -7,13 +7,71 @@ Unmanaged switches have no IP, so their live status is inferred from devices
 whose desk ports (D-1, D-2, …) fall in the switch's port range.
 """
 from concurrent.futures import ThreadPoolExecutor
+import os
 import platform
 import re
+import shutil
 import socket
 import subprocess
 import time
 
 _DESK_PORT_RE = re.compile(r"^D-(\d+)$", re.IGNORECASE)
+_SSH_USER_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+def launch_ssh_terminal(host: str, username: str = "") -> tuple[bool, str]:
+    """
+    Open a local terminal emulator running `ssh [user@]host`.
+
+    Uses argv lists only (no shell). Works when the browser and Django run on
+    the same desktop machine. Returns (ok, message).
+    """
+    host = (host or "").strip()
+    if not host:
+        return False, "No IP address."
+    try:
+        socket.inet_pton(socket.AF_INET, host)
+    except OSError:
+        try:
+            socket.inet_pton(socket.AF_INET6, host)
+        except OSError:
+            return False, "Invalid IP address."
+
+    user = (username or "").strip()
+    if user and not _SSH_USER_RE.match(user):
+        return False, "Invalid SSH username."
+
+    target = f"{user}@{host}" if user else host
+    ssh_cmd = ["ssh", target]
+
+    display = os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    if not display and platform.system() == "Linux":
+        return False, "No graphical display — open a terminal and run: " + " ".join(ssh_cmd)
+
+    # Prefer emulators that take argv after -- / -e without shell quoting.
+    candidates = [
+        (["gnome-terminal", "--"], ssh_cmd),
+        (["kgx", "--"], ssh_cmd),
+        (["konsole", "-e"], ssh_cmd),
+        (["xfce4-terminal", "-x"], ssh_cmd),
+        (["mate-terminal", "-x"], ssh_cmd),
+        (["xterm", "-e"], ssh_cmd),
+    ]
+    for prefix, args in candidates:
+        binary = prefix[0]
+        if not shutil.which(binary):
+            continue
+        try:
+            subprocess.Popen(
+                prefix + args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True, f"Opened terminal: ssh {target}"
+        except OSError:
+            continue
+
+    return False, "No terminal emulator found. Run manually: " + " ".join(ssh_cmd)
 
 
 def parse_desk_port(value):
