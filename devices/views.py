@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
 import ipaddress
 import json
 
@@ -34,6 +35,32 @@ def _ip_sort_key(device):
             return (2, 0, device.ip_address)
     number = parse_desk_port(device.port_from if device.is_switch else device.port)
     return (1, number if number is not None else 10**9, device.employee or "")
+
+
+def _group_devices_by_department(devices):
+    """Group devices by department for bordered dashboard sections.
+    Named departments are A–Z; Unassigned (if any) comes last.
+    Devices within each group keep the caller's sort order.
+    """
+    buckets = defaultdict(list)
+    for device in devices:
+        key = device.department.name if device.department else None
+        buckets[key].append(device)
+
+    groups = []
+    for name in sorted((k for k in buckets if k is not None), key=str.lower):
+        groups.append({
+            "name": name,
+            "slug": name.lower(),
+            "devices": buckets[name],
+        })
+    if None in buckets:
+        groups.append({
+            "name": "Unassigned",
+            "slug": "__none__",
+            "devices": buckets[None],
+        })
+    return groups
 
 
 def _map_switches(devices):
@@ -93,6 +120,7 @@ def dashboard(request):
     ]
     return render(request, "devices/dashboard.html", {
         "devices": devices,
+        "device_groups": _group_devices_by_department(devices),
         "switches": switches,
         "up_count": up_count,
         "down_count": total_count - up_count,

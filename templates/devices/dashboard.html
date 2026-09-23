@@ -231,8 +231,48 @@
         box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
     }
 
-    /* Compact grid — scales to ~100 devices */
+    /* Department sections with device cards inside */
     #device-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .dept-group {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 0.75rem 0.85rem 0.85rem;
+        background: var(--surface);
+        animation: fadeUp 0.3s ease-out both;
+    }
+
+    .dept-group-name {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0 0 0.7rem;
+        font-family: var(--font-display);
+        font-size: 0.82rem;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+    }
+
+    .dept-group-name i {
+        color: var(--teal-deep);
+        font-size: 0.85rem;
+        opacity: 0.9;
+    }
+
+    .dept-group-name .dept-count {
+        margin-left: auto;
+        font-family: var(--font-body);
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: var(--muted);
+    }
+
+    .dept-group-cards {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 0.65rem;
@@ -953,7 +993,8 @@
         .switch-filter,
         .sort-filter,
         .toolbar .export-btn { flex: 1 1 100%; }
-        #device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+        #device-grid { gap: 0.85rem; }
+        .dept-group-cards { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     }
 </style>
 {% endblock %}
@@ -1067,39 +1108,50 @@
 {% endif %}
 
 <div id="device-grid">
-    {% for device in devices %}
-    <div class="device-col"
-         id="device-col-{{ device.id }}"
-         data-employee="{{ device.employee|lower }}"
-         data-ip="{{ device.ip_address }}"
-         data-mac="{{ device.mac_address|lower }}"
-         data-host="{{ device.host|lower }}"
-         data-port="{% if device.is_switch %}{{ device.port_from|lower }}{% else %}{{ device.port|lower }}{% endif %}"
-         data-department="{% if device.department %}{{ device.department.name|lower }}{% endif %}"
-         data-category="{{ device.category }}"
-         data-switch-id="{{ device.mapped_switch_id }}"
-         data-switch-name="{{ device.mapped_switch_name|lower }}"
-         data-status="{% if device.is_up %}up{% else %}down{% endif %}">
-        <button type="button"
-                class="mini-card {% if device.is_up %}up{% else %}down{% endif %}{% if device.is_switch %} switch{% endif %}"
-                id="device-card-{{ device.id }}"
-                data-id="{{ device.id }}"
-                aria-expanded="false">
-            <div class="mini-top">
-                <h2 class="mini-name">{{ device.employee }}</h2>
-                <span class="mini-dot {% if device.is_up %}up{% else %}down{% endif %}" id="dot-{{ device.id }}"></span>
+    {% for group in device_groups %}
+    <section class="dept-group" data-department="{{ group.slug }}">
+        <h3 class="dept-group-name">
+            <i class="bi bi-building" aria-hidden="true"></i>
+            <span>{{ group.name }}</span>
+            <span class="dept-count">{{ group.devices|length }}</span>
+        </h3>
+        <div class="dept-group-cards">
+            {% for device in group.devices %}
+            <div class="device-col"
+                 id="device-col-{{ device.id }}"
+                 data-employee="{{ device.employee|lower }}"
+                 data-ip="{{ device.ip_address }}"
+                 data-mac="{{ device.mac_address|lower }}"
+                 data-host="{{ device.host|lower }}"
+                 data-port="{% if device.is_switch %}{{ device.port_from|lower }}{% else %}{{ device.port|lower }}{% endif %}"
+                 data-department="{% if device.department %}{{ device.department.name|lower }}{% else %}__none__{% endif %}"
+                 data-category="{{ device.category }}"
+                 data-switch-id="{{ device.mapped_switch_id }}"
+                 data-switch-name="{{ device.mapped_switch_name|lower }}"
+                 data-status="{% if device.is_up %}up{% else %}down{% endif %}">
+                <button type="button"
+                        class="mini-card {% if device.is_up %}up{% else %}down{% endif %}{% if device.is_switch %} switch{% endif %}"
+                        id="device-card-{{ device.id }}"
+                        data-id="{{ device.id }}"
+                        aria-expanded="false">
+                    <div class="mini-top">
+                        <h2 class="mini-name">{{ device.employee }}</h2>
+                        <span class="mini-dot {% if device.is_up %}up{% else %}down{% endif %}" id="dot-{{ device.id }}"></span>
+                    </div>
+                    <div class="mini-ip">{% if device.is_switch %}{{ device.port_from }} – {{ device.port_to }}{% elif device.ip_address %}{{ device.ip_address }}{% else %}—{% endif %}</div>
+                    <div class="mini-meta">
+                        <span class="mini-status {% if device.is_up %}up{% else %}down{% endif %}" id="badge-{{ device.id }}">
+                            {% if device.is_switch %}{% if device.is_up %}Live{% else %}No path{% endif %}{% elif device.is_up %}Online{% else %}Offline{% endif %}
+                        </span>
+                        <span class="mini-ping" id="ping-{{ device.id }}">
+                            {% if device.is_switch %}{{ device.port_from }}–{{ device.port_to }}{% elif device.last_response_ms and device.port %}{{ device.last_response_ms|floatformat:0 }}ms | {{ device.port }}{% elif device.last_response_ms %}{{ device.last_response_ms|floatformat:0 }}ms{% elif device.port %}{{ device.port }}{% else %}—{% endif %}
+                        </span>
+                    </div>
+                </button>
             </div>
-            <div class="mini-ip">{% if device.is_switch %}{{ device.port_from }} – {{ device.port_to }}{% elif device.ip_address %}{{ device.ip_address }}{% else %}—{% endif %}</div>
-            <div class="mini-meta">
-                <span class="mini-status {% if device.is_up %}up{% else %}down{% endif %}" id="badge-{{ device.id }}">
-                    {% if device.is_switch %}{% if device.is_up %}Live{% else %}No path{% endif %}{% elif device.is_up %}Online{% else %}Offline{% endif %}
-                </span>
-                <span class="mini-ping" id="ping-{{ device.id }}">
-                    {% if device.is_switch %}{{ device.port_from }}–{{ device.port_to }}{% elif device.last_response_ms and device.port %}{{ device.last_response_ms|floatformat:0 }}ms | {{ device.port }}{% elif device.last_response_ms %}{{ device.last_response_ms|floatformat:0 }}ms{% elif device.port %}{{ device.port }}{% else %}—{% endif %}
-                </span>
-            </div>
-        </button>
-    </div>
+            {% endfor %}
+        </div>
+    </section>
     {% endfor %}
 </div>
 
@@ -1423,9 +1475,11 @@
     function sortDevices() {
         if (!deviceGrid) return;
         const mode = sortFilter ? sortFilter.value : 'ip';
-        const cols = [...deviceGrid.querySelectorAll('.device-col')];
-        cols.sort((a, b) => compareCols(a, b, mode));
-        cols.forEach(col => deviceGrid.appendChild(col));
+        deviceGrid.querySelectorAll('.dept-group-cards').forEach(grid => {
+            const cols = [...grid.querySelectorAll('.device-col')];
+            cols.sort((a, b) => compareCols(a, b, mode));
+            cols.forEach(col => grid.appendChild(col));
+        });
     }
 
     function filterDevices() {
@@ -1438,14 +1492,21 @@
         cols.forEach(col => {
             const statusOk = activeFilter === 'all' || col.dataset.status === activeFilter;
             const colDept = col.dataset.department || '';
-            const deptOk = !dept
-                || (dept === '__none__' ? !colDept : colDept === dept);
+            const deptOk = !dept || colDept === dept;
             const categoryOk = !category || (col.dataset.category || '') === category;
             const switchOk = !switchId || String(col.dataset.switchId || '') === String(switchId);
             const hay = `${col.dataset.employee} ${col.dataset.ip} ${col.dataset.mac || ''} ${col.dataset.host || ''} ${col.dataset.port || ''} ${colDept} ${col.dataset.category || ''} ${col.dataset.switchName || ''}`;
             const show = statusOk && deptOk && categoryOk && switchOk && (!q || hay.includes(q));
             col.classList.toggle('hidden-by-filter', !show);
             if (show) visible++;
+        });
+        document.querySelectorAll('.dept-group').forEach(group => {
+            const anyVisible = group.querySelector('.device-col:not(.hidden-by-filter)');
+            group.classList.toggle('hidden-by-filter', !anyVisible);
+            const countEl = group.querySelector('.dept-count');
+            if (countEl) {
+                countEl.textContent = group.querySelectorAll('.device-col:not(.hidden-by-filter)').length;
+            }
         });
         if (emptyFilter) {
             emptyFilter.classList.toggle('hidden-by-filter', visible > 0 || cols.length === 0);
