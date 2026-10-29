@@ -227,7 +227,11 @@ def check_device(device):
     if device.check_port:
         tcp_up, tcp_ms = tcp_check(device.ip_address, device.check_port)
 
-    arp_up = neigh_reachable(device.ip_address)
+    # Sleeping/powered-off PCs can keep answering ARP (WoL / ARP offload), so
+    # only access points, which often ignore ICMP, may be marked up by ARP alone.
+    arp_up = None
+    if device.category == getattr(device, "CATEGORY_ACCESS_POINT", "access_point"):
+        arp_up = neigh_reachable(device.ip_address)
 
     is_up = bool(ping_up or tcp_up or arp_up)
     response_ms = ping_ms if ping_up else (tcp_ms if tcp_up else None)
