@@ -21,12 +21,14 @@ class Device(models.Model):
     CATEGORY_PC = "pc"
     CATEGORY_PRINTER = "printer"
     CATEGORY_CENTRALIZED = "centralized"
+    CATEGORY_SERVER = "server"
     CATEGORY_ACCESS_POINT = "access_point"
     CATEGORY_SWITCH = "switch"
     CATEGORY_CHOICES = [
         (CATEGORY_PC, "PC"),
         (CATEGORY_PRINTER, "Printer"),
         (CATEGORY_CENTRALIZED, "Centralized"),
+        (CATEGORY_SERVER, "Server"),
         (CATEGORY_ACCESS_POINT, "Access Point"),
         (CATEGORY_SWITCH, "Switch"),
     ]
@@ -84,7 +86,7 @@ class Device(models.Model):
         choices=CATEGORY_CHOICES,
         default=CATEGORY_PC,
         db_index=True,
-        help_text="Device type: PC, Printer, Centralized, Access Point, Switch",
+        help_text="Device type: PC, Printer, Centralized, Server, Access Point, Switch",
     )
 
     LOGIN_NONE = "none"
